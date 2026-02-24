@@ -1,0 +1,7 @@
+﻿streamlit
+pandas
+numpy
+plotly
+pulp
+groq
+requests
