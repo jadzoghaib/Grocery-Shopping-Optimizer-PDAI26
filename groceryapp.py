@@ -34,12 +34,12 @@ if 'pinned_recipes' not in st.session_state:
 
 # Initialize Clients - Moved to top level to avoid duplicate widget IDs
 def init_groq_client():
-    # Attempt to load from environment first
-    groq_key = os.environ.get("GROQ_API_KEY", None)
-    
-    # Fallback to hardcoded key (for dev purposes, hidden from UI)
-    if not groq_key:
-         groq_key = "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"
+    # Load from Streamlit secrets (if available), then environment
+    try:
+        groq_key = st.secrets.get("GROQ_API_KEY", None)
+    except Exception:
+        groq_key = None
+    groq_key = groq_key or os.environ.get("GROQ_API_KEY", "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")
 
     if groq_key:
         try:
@@ -263,10 +263,13 @@ def load_mercadona_db():
 def load_recipe_data():
     # Use relative path so it works on any machine (Git friendly)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Path to the new Food.com dataset logic
     # Looking for 'Food.com - Recipes/recipes.csv' (Real dataset)
-    csv_path = os.path.join(script_dir, "Food.com - Recipes", "recipes.csv")
+    # Fall back to sibling directory if not present locally
+    local_csv = os.path.join(script_dir, "Food.com - Recipes", "recipes.csv")
+    sibling_csv = os.path.join(script_dir, "..", "Grocery-Shopping-Optimizer", "Food.com - Recipes", "recipes.csv")
+    csv_path = local_csv if os.path.exists(local_csv) else sibling_csv
     prices_path = os.path.join(script_dir, "Food.com - Recipes", "ingredient_prices_synthetic.csv")
     
     mercadona_path = os.path.join(script_dir, "mercadona_prices.csv")
