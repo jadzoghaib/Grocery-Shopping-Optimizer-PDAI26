@@ -33,7 +33,7 @@ An advanced app that combines linear programming, LLMs, and real supermarket dat
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/jadzoghaib/Grocery-Shopping-Optimizer-PDAI26.git
 
 # Navigate to the project directory
 cd Grocery-Shopping-Optimizer
