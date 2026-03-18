@@ -5,8 +5,9 @@ import pandas as pd
 import streamlit as st
 from groq import Groq
 
-_USER_RECIPES_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_recipes.json")
-_RATING_ADJUSTMENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rating_adjustments.json")
+_DATA_DIR             = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+_USER_RECIPES_FILE    = os.path.join(_DATA_DIR, "user_recipes.json")
+_RATING_ADJUSTMENTS_FILE = os.path.join(_DATA_DIR, "rating_adjustments.json")
 
 
 def _load_user_recipes():
@@ -28,8 +29,8 @@ def _load_rating_adjustments():
         pass
     return {}
 
-from data import load_recipe_data
-from ui import (
+from core.data import load_recipe_data
+from components.ui import (
     apply_theme,
     render_sidebar,
     render_tab_basket,

@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 @st.cache_data(ttl=3600)
 def _load_index():
-    from data import load_mercadona_db
+    from core.data import load_mercadona_db
     df = load_mercadona_db().dropna(subset=["name"]).reset_index(drop=True)
 
     vectorizer = TfidfVectorizer(ngram_range=(1, 2), analyzer="word", min_df=1)

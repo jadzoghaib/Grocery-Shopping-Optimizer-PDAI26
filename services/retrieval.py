@@ -17,7 +17,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 @st.cache_data(ttl=3600, show_spinner=False)
 def _recipe_index():
     try:
-        from data import load_recipe_data
+        from core.data import load_recipe_data
         df = load_recipe_data().reset_index(drop=True)
         if df.empty:
             return pd.DataFrame(), None, None

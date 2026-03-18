@@ -11,11 +11,11 @@ import requests
 import streamlit as st
 
 try:
-    from ingredient_translations import ENGLISH_TO_SPANISH
+    from core.ingredient_translations import ENGLISH_TO_SPANISH
 except ImportError:
     ENGLISH_TO_SPANISH = {}
 
-from config import ALLOWED_RECIPE_TERMS, BLOCKED_RECIPE_TERMS
+from core.config import ALLOWED_RECIPE_TERMS, BLOCKED_RECIPE_TERMS
 
 
 # ── Mercadona API constants ───────────────────────────────────────────────────
@@ -25,12 +25,13 @@ _MERC_HEADS    = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/json",
 }
+_DATA_DIR      = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _CACHE_FILE    = "mercadona_cache.csv"   # persistent weekly cache
 _CACHE_MAX_AGE = 7                        # days
 
 
 def _cache_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), _CACHE_FILE)
+    return os.path.join(_DATA_DIR, _CACHE_FILE)
 
 
 def _cache_is_stale():
@@ -114,7 +115,7 @@ def load_mercadona_db(lang="en", wh="bcn1"):
 
     # 3. Fallback: stale cache → old CSV → empty
     for fallback in [_cache_path(),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), "mercadona_prices.csv")]:
+                     os.path.join(_DATA_DIR, "mercadona_prices.csv")]:
         try:
             if os.path.exists(fallback):
                 return pd.read_csv(fallback)
@@ -125,13 +126,11 @@ def load_mercadona_db(lang="en", wh="bcn1"):
 
 @st.cache_data
 def load_recipe_data():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     # Prefer the unit-enriched version; fall back to the original
-    enriched_csv = os.path.join(script_dir, "Food.com - Recipes", "recipes_enriched.csv")
-    local_csv    = os.path.join(script_dir, "Food.com - Recipes", "recipes.csv")
-    sibling_csv  = os.path.join(script_dir, "..", "Grocery-Shopping-Optimizer", "Food.com - Recipes", "recipes.csv")
-    csv_path = enriched_csv if os.path.exists(enriched_csv) else (local_csv if os.path.exists(local_csv) else sibling_csv)
-    prices_path = os.path.join(script_dir, "Food.com - Recipes", "ingredient_prices_synthetic.csv")
+    enriched_csv = os.path.join(_DATA_DIR, "recipes_enriched.csv")
+    local_csv    = os.path.join(_DATA_DIR, "recipes.csv")
+    csv_path = enriched_csv if os.path.exists(enriched_csv) else local_csv
+    prices_path = os.path.join(_DATA_DIR, "ingredient_prices_synthetic.csv")
 
     price_map = {}
     url_map = {}

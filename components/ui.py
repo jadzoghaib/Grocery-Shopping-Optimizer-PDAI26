@@ -6,10 +6,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import CUISINE_MAP
+from core.config import CUISINE_MAP
 
-_USER_RECIPES_FILE       = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_recipes.json")
-_RATING_ADJUSTMENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rating_adjustments.json")
+_DATA_DIR                = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+_USER_RECIPES_FILE       = os.path.join(_DATA_DIR, "user_recipes.json")
+_RATING_ADJUSTMENTS_FILE = os.path.join(_DATA_DIR, "rating_adjustments.json")
 
 
 def _save_user_recipes():
@@ -26,8 +27,8 @@ def _save_rating_adjustments():
             json.dump(st.session_state.get("rating_adjustments", {}), f, ensure_ascii=False, indent=2)
     except Exception as e:
         st.warning(f"Could not save ratings to disk: {e}")
-from optimizer import optimize_meal_plan
-from shopping import optimize_shopping_list_groq
+from core.optimizer import optimize_meal_plan
+from core.shopping import optimize_shopping_list_groq
 from services.rag import is_valid_key, parse_basket_intent, rag_answer, search_products
 
 
