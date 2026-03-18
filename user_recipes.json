@@ -1,0 +1,53 @@
+[
+  {
+    "name": "👤 Sweet Potato Curry",
+    "RecipeCategory": "Main Dish",
+    "Keywords": "main dinner lunch entree casserole stew chicken beef pork pasta",
+    "calories": 800.0,
+    "protein": 200.0,
+    "carbs": 300.0,
+    "fat": 10.0,
+    "prep_time": 20.0,
+    "cost": 5.0,
+    "AggregatedRating": 8.0,
+    "ingredients": "1 whole onion, half a tablespoon avocado oil, a couple of cloves garlic, ginger, sweet potatoes, carrots, broccoli, cauliflower, black pepper, a teaspoon turmeric, 2 cups vegetable stock, 1 cup quinoa, 2 limes, green beans, cilantro, peas, macadamia nutmilk",
+    "ingredients_json": "[{\"q\": \"\", \"i\": \"1 whole onion\"}, {\"q\": \"\", \"i\": \"half a tablespoon avocado oil\"}, {\"q\": \"\", \"i\": \"a couple of cloves garlic\"}, {\"q\": \"\", \"i\": \"ginger\"}, {\"q\": \"\", \"i\": \"sweet potatoes\"}, {\"q\": \"\", \"i\": \"carrots\"}, {\"q\": \"\", \"i\": \"broccoli\"}, {\"q\": \"\", \"i\": \"cauliflower\"}, {\"q\": \"\", \"i\": \"black pepper\"}, {\"q\": \"\", \"i\": \"a teaspoon turmeric\"}, {\"q\": \"\", \"i\": \"2 cups vegetable stock\"}, {\"q\": \"\", \"i\": \"1 cup quinoa\"}, {\"q\": \"\", \"i\": \"2 limes\"}, {\"q\": \"\", \"i\": \"green beans\"}, {\"q\": \"\", \"i\": \"cilantro\"}, {\"q\": \"\", \"i\": \"peas\"}, {\"q\": \"\", \"i\": \"macadamia nutmilk\"}]",
+    "instructions": "Step 1: Chop one whole onion into a fine dice. Step 2: Heat a medium stainless steel pot on medium-high heat and add half a tablespoon of avocado oil. Step 3: Add the chopped onion and cook until it's translucent. Step 4: Peel and chop ginger and garlic, and add to the pot. Step 5: Peel and chop sweet potatoes and carrots, and add to the pot. Step 6: Chop broccoli and cauliflower, and let them sit for 40 minutes. Step 7: Add black pepper and turmeric to the pot. Step 8: Add broccoli, cauliflower, and enough water to cover everything, and bring to a boil. Step 9: Cover the pot and let it simmer for 15 minutes. Step 10: Cook quinoa in a separate pot. Step 11: Add peas, green beans, cilantro, citrus juice, and macadamia nutmilk to the curry. Step 12: Plate the dish with quinoa, curry, and garnishes.",
+    "source_url": "https://youtu.be/0bUieoJ6FI4",
+    "is_user_recipe": true
+  },
+  {
+    "name": "👤 Buddha Bowl",
+    "RecipeCategory": "Other",
+    "Keywords": "main dinner lunch",
+    "calories": 200.0,
+    "protein": 200.0,
+    "carbs": 80.0,
+    "fat": 10.0,
+    "prep_time": 30.0,
+    "cost": 5.0,
+    "AggregatedRating": 10.0,
+    "ingredients": "1 Japanese Sweet Potato, 1/2 Head Of Asparagus, 5-6 Leaves Kale, 1 Red Pepper, 2 Carrots, 1/4 Cup Walnuts, Handful Of Cilantro, 1/2 Tsp Blueprint Extra Virgin Olive Oil, Handful Of Green Onions, Lemon, Handful Of Chopped Dill, 1/2 Cup White Beans, 1 Tbsp Apple Cider Vinegar, 1/2 Tsp Cumin Seeds",
+    "ingredients_json": "[{\"q\": \"\", \"i\": \"1 Japanese Sweet Potato\"}, {\"q\": \"\", \"i\": \"1/2 Head Of Asparagus\"}, {\"q\": \"\", \"i\": \"5-6 Leaves Kale\"}, {\"q\": \"\", \"i\": \"1 Red Pepper\"}, {\"q\": \"\", \"i\": \"2 Carrots\"}, {\"q\": \"\", \"i\": \"1/4 Cup Walnuts\"}, {\"q\": \"\", \"i\": \"Handful Of Cilantro\"}, {\"q\": \"\", \"i\": \"1/2 Tsp Blueprint Extra Virgin Olive Oil\"}, {\"q\": \"\", \"i\": \"Handful Of Green Onions\"}, {\"q\": \"\", \"i\": \"Lemon\"}, {\"q\": \"\", \"i\": \"Handful Of Chopped Dill\"}, {\"q\": \"\", \"i\": \"1/2 Cup White Beans\"}, {\"q\": \"\", \"i\": \"1 Tbsp Apple Cider Vinegar\"}, {\"q\": \"\", \"i\": \"1/2 Tsp Cumin Seeds\"}]",
+    "instructions": "Poke a few holes in the sweet potato and slightly cover with Blueprint Extra Virgin Olive Oil. Roast the Japanese sweet potato for 45 minutes to 1 hour at 400°F. Once roasted, pull out of the oven, cut in half, and top with green onions and cilantro.\nRoast the red pepper in the oven for 25–30 mins at 400°F. Thinly slice the pepper after roasting.\nTrim off the woody ends of the asparagus and boil in 1–inch water in a large skillet for 2–5 minutes.\nRinse and drain the white beans. Top beans with juice of 1 lemon and a handful of chopped dill.\nShred the carrots and massage with apple cider vinegar and cumin seeds.\nChop the kale, add a splash of Extra Virgin Olive Oil, and massage kale with your hands until kale softens.\nAssemble the bowl with the sweet potato, asparagus, red pepper, bean salad, kale, and shredded carrots. Top with toasted walnuts and a squeeze of lemon juice.",
+    "source_url": "https://blueprint.bryanjohnson.com/blogs/recipes/buddha-bowl-recipe",
+    "is_user_recipe": true
+  },
+  {
+    "name": "👤 Super Veggie",
+    "RecipeCategory": "Vegetable",
+    "Keywords": "vegetable dinner lunch main salad",
+    "calories": 300.0,
+    "protein": 200.0,
+    "carbs": 100.0,
+    "fat": 10.0,
+    "prep_time": 20.0,
+    "cost": 5.0,
+    "AggregatedRating": 10.0,
+    "ingredients": "150g cauliflower, 250g broccoli, 50g shitake or maake mushrooms, 1 clove garlic, 3g ginger, 150g cooked black lentils, 1 tbsp cumin, 1 tspoon hemp seeds, 1 tbspoon apple cider vinegar, 1 tblspoon extra virgin olive oil",
+    "ingredients_json": "[{\"q\": \"\", \"i\": \"150g cauliflower\"}, {\"q\": \"\", \"i\": \"250g broccoli\"}, {\"q\": \"\", \"i\": \"50g shitake or maake mushrooms\"}, {\"q\": \"\", \"i\": \"1 clove garlic\"}, {\"q\": \"\", \"i\": \"3g ginger\"}, {\"q\": \"\", \"i\": \"150g cooked black lentils\"}, {\"q\": \"\", \"i\": \"1 tbsp cumin\"}, {\"q\": \"\", \"i\": \"1 tspoon hemp seeds\"}, {\"q\": \"\", \"i\": \"1 tbspoon apple cider vinegar\"}, {\"q\": \"\", \"i\": \"1 tblspoon extra virgin olive oil\"}]",
+    "instructions": "Step 1: Chop cauliflower, broccoli, mushrooms, garlic, and ginger.\nStep 2: Boil broccoli, cauliflower, and mushrooms for 7-9 minutes.\nStep 3: Add boiled vegetables to 150g cooked black lentils.\nStep 4: Add cumin, hemp seeds, ginger, garlic, apple cider vinegar, and olive oil.\nStep 5: Blend with water for a smooth version or top with salt substitute for a chopped version.",
+    "source_url": "https://youtu.be/wHx51zMqmcg",
+    "is_user_recipe": true
+  }
+]

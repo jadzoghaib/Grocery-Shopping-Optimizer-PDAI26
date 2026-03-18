@@ -38,3 +38,6 @@ venv.bak/
 
 # Large files
 App-demo.webm
+
+# Claude Code session files
+.claude/

@@ -5,3 +5,14 @@ plotly
 pulp
 groq
 requests
+scikit-learn
+openai
+anthropic
+mistralai
+cohere
+duckduckgo-search
+youtube-search-python
+beautifulsoup4
+youtube-transcript-api
+streamlit-aggrid
+reportlab
