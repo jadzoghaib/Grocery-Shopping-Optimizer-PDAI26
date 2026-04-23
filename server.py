@@ -866,6 +866,23 @@ async def debate_chat(req: DebateChatRequest):
 # ── Dash dashboards (only when DISABLE_DASH is not set) ──────────────────────
 if _DASH_ENABLED:
     app.mount("/dash", WSGIMiddleware(dash_app.server))
+else:
+    # When Dash is disabled (e.g. Render free tier), return a friendly HTML page
+    # instead of FastAPI's raw {"detail":"Not Found"} JSON inside iframes.
+    from fastapi.responses import HTMLResponse
+
+    @app.get("/dash/{path:path}")
+    async def dash_disabled(path: str):
+        return HTMLResponse("""<!DOCTYPE html>
+<html><body style="margin:0;display:flex;align-items:center;justify-content:center;
+height:100vh;font-family:system-ui,sans-serif;background:#f8fafc;color:#64748b">
+<div style="text-align:center;padding:24px">
+  <div style="font-size:2.5rem;margin-bottom:12px">📊</div>
+  <div style="font-weight:600;font-size:1rem;margin-bottom:6px;color:#334155">
+    Analytics unavailable on free tier</div>
+  <div style="font-size:.82rem">Plotly/Dash is disabled to stay within 512 MB RAM.<br>
+  Run locally or set <code>DISABLE_DASH=</code> (empty) to enable.</div>
+</div></body></html>""")
 
 # ── Static files (must be last) ──────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")
