@@ -694,8 +694,6 @@ async function rateRecipe(name, delta, cardIdx) {
 
 async function generateShoppingList() {
   if (!S.mealPlan) return;
-  if (!S.settings.groqKey) { toast('Set your Groq API key in Settings', 'error'); return; }
-
   S.plannerStep = 3;
   renderPlanner(document.getElementById('content'));
   document.getElementById('planner-content').innerHTML = `<div class="loading-overlay"><div class="spinner"></div><div>Generating smart shopping list...<br><span class="text-sm text-muted">Matching ingredients to Mercadona products via AI</span></div></div>`;
@@ -1112,9 +1110,6 @@ async function sendDebateMessage() {
   if (!S.shoppingList || !S.shoppingList.length) {
     toast('Generate a shopping list first', 'error'); return;
   }
-  if (!S.settings.groqKey) {
-    toast('Enter your Groq API key in Settings first', 'error'); return;
-  }
   const input = document.getElementById('debate-input');
   const message = (input ? input.value.trim() : '') || 'Analyse this basket and share your perspective.';
 
@@ -1174,9 +1169,6 @@ async function sendDebateMessage() {
 async function runDebate() {
   if (!S.shoppingList || !S.shoppingList.length) {
     toast('Generate a shopping list first', 'error'); return;
-  }
-  if (!S.settings.groqKey) {
-    toast('Enter your Groq API key in Settings first', 'error'); return;
   }
   // Show the debate chat section and scroll to it, then auto-start
   const section = document.getElementById('debate-section');
@@ -3069,6 +3061,18 @@ async function sendChatMessage() {
 function openSettings() {
   document.getElementById('modal-overlay').classList.remove('hidden');
   document.getElementById('setting-groq-key').value = S.settings.groqKey || '';
+  // Show server key pool status
+  const statusEl = document.getElementById('server-key-status');
+  if (statusEl) {
+    const avail = S._serverKeysAvailable || 0;
+    const total = S._serverKeysTotal || 0;
+    if (total > 0) {
+      const color = avail > 0 ? '#10b981' : '#f43f5e';
+      statusEl.innerHTML = `<i class="fa-solid fa-server" style="color:${color}"></i> Server key pool: <strong style="color:${color}">${avail}/${total} available</strong> — your own key above takes priority if set.`;
+    } else {
+      statusEl.innerHTML = `<i class="fa-solid fa-circle-info"></i> No server keys configured — enter your own key above.`;
+    }
+  }
 }
 
 function closeModal() {
@@ -3091,6 +3095,9 @@ async function init() {
       S.settings.groqKey = S.config.groq_key;
       save('settings');
     }
+    // Store server key availability for UI hints
+    S._serverKeysAvailable = S.config.server_keys_available || 0;
+    S._serverKeysTotal     = S.config.server_keys_total || 0;
   } catch (e) { /* use defaults */ }
 
   // Event listeners

@@ -75,8 +75,9 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Groq API Key <span class="hint">(used for shopping list generation and chat)</span></label>
-          <input type="password" id="setting-groq-key" placeholder="gsk_...">
+          <label>Groq API Key <span class="hint">(optional — leave empty to use server keys)</span></label>
+          <input type="password" id="setting-groq-key" placeholder="gsk_... or leave blank">
+          <div id="server-key-status" style="margin-top:6px;font-size:.75rem;color:var(--text3)"></div>
         </div>
       </div>
       <div class="modal-footer">

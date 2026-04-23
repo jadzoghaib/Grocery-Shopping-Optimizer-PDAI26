@@ -20,6 +20,7 @@ from core.config import CUISINE_MAP
 from core.data import load_recipe_data, load_mercadona_db
 from core.optimizer import optimize_meal_plan
 from core.shopping import optimize_shopping_list_groq
+from core.groq_client import groq_with_rotation, resolve_key, pool_status, make_groq_client
 from services.rag import rag_answer, parse_basket_intent, search_products
 from services.nutrition_agent import nutrition_answer, parse_nutrition_plan
 from services.fridge import fridge_suggest
@@ -214,15 +215,22 @@ async def index():
 
 @app.get("/api/config")
 async def get_config():
+    status = pool_status()
     return {
         "cuisine_map": CUISINE_MAP,
         "default_slots": ["Breakfast", "Lunch", "Snack", "Dinner"],
         "variability_options": ["Low", "Medium", "High"],
-        # Pre-populate the Settings panel if the key is set server-side.
-        # Returns empty string when not set so the frontend falls back to
-        # whatever is already stored in localStorage.
         "groq_key": os.environ.get("GROQ_API_KEY", ""),
+        # Let the frontend know server-side keys are available
+        "server_keys_available": status["available"],
+        "server_keys_total": status["total_keys"],
     }
+
+
+@app.get("/api/groq-pool")
+async def groq_pool_status():
+    """Debug endpoint — shows key pool health without exposing key values."""
+    return {"ok": True, **pool_status()}
 
 
 @app.post("/api/meal-plan/generate")
@@ -413,8 +421,7 @@ async def search_recipes_by_name(q: str = Query("", alias="q")):
 @app.post("/api/shopping-list/generate")
 async def generate_shopping_list(req: ShoppingListRequest):
     try:
-        from groq import Groq
-        client = Groq(api_key=req.groq_key)
+        client = make_groq_client(resolve_key(req.groq_key))
         result = optimize_shopping_list_groq(req.items, client, people_count=req.people)
         records = _df_to_records(result)
         dash_cache.store("shopping", records)   # cache for Dash
@@ -449,7 +456,7 @@ async def chat(req: ChatRequest):
         reply = rag_answer(
             question=req.message,
             messages_history=req.history,
-            api_key=req.api_key,
+            api_key=resolve_key(req.api_key),
         )
         display, basket_items = parse_basket_intent(reply)
         return {"ok": True, "reply": display, "basket_items": basket_items}
@@ -468,7 +475,7 @@ async def sync_history(req: HistorySyncRequest):
 @app.post("/api/fridge/suggest")
 async def fridge_suggest_endpoint(req: FridgeRequest):
     try:
-        result = fridge_suggest(req.ingredients, req.api_key)
+        result = fridge_suggest(req.ingredients, resolve_key(req.api_key))
         return {"ok": True, **result}
     except Exception as e:
         traceback.print_exc()
@@ -481,7 +488,7 @@ async def nutrition_chat(req: NutritionChatRequest):
         reply = nutrition_answer(
             question=req.message,
             messages_history=req.history,
-            api_key=req.api_key,
+            api_key=resolve_key(req.api_key),
         )
         display, plan = parse_nutrition_plan(reply)
         return {"ok": True, "reply": display, "nutrition_plan": plan}
@@ -505,9 +512,8 @@ async def import_recipe_url(req: RecipeImportRequest):
     """Import a recipe from any web URL (JSON-LD first, Groq LLM fallback)."""
     try:
         from services.recipe_import import import_from_url
-        from groq import Groq as _Groq
-        api_key = req.api_key or os.environ.get("GROQ_API_KEY", "")
-        groq_client = _Groq(api_key=api_key) if api_key else None
+        resolved = resolve_key(req.api_key)
+        groq_client = make_groq_client(resolved) if resolved else None
         loop = asyncio.get_event_loop()
         try:
             recipe = await asyncio.wait_for(
@@ -527,11 +533,10 @@ async def import_recipe_youtube(req: RecipeImportRequest):
     """Import a recipe from a YouTube video transcript via Groq LLM."""
     try:
         from services.recipe_import import import_from_youtube
-        from groq import Groq as _Groq
-        api_key = req.api_key or os.environ.get("GROQ_API_KEY", "")
+        api_key = resolve_key(req.api_key)
         if not api_key:
             return {"ok": False, "error": "Groq API key required for YouTube import"}
-        groq_client = _Groq(api_key=api_key)
+        groq_client = make_groq_client(api_key)
         # Run in executor with a 45-second timeout so the button never gets stuck
         loop = asyncio.get_event_loop()
         try:
@@ -693,7 +698,7 @@ async def body_estimate_nutrients(req: BodyEstimateNutrientsRequest):
       5. Groq estimates only for ingredients USDA can't match
     """
     try:
-        api_key = req.api_key or os.environ.get("GROQ_API_KEY", "")
+        api_key = resolve_key(req.api_key)
         meal_plan = req.meal_plan or (dash_cache.fetch("meal_plan") or [])
 
         def _run():
@@ -711,7 +716,7 @@ async def body_estimate_nutrients(req: BodyEstimateNutrientsRequest):
 async def body_coach_chat_endpoint(req: BodyCoachChatRequest):
     """One turn of the Body Coach agent (context-aware nutrition assistant)."""
     try:
-        api_key = req.api_key or os.environ.get("GROQ_API_KEY", "")
+        api_key = resolve_key(req.api_key)
 
         def _run():
             return body_coach_chat(
@@ -773,7 +778,7 @@ class IngestRequest(BaseModel):
 async def news_ingest(req: IngestRequest):
     """Manually trigger news ingestion (RAG + CAG) with force=True."""
     try:
-        api_key = req.api_key or os.environ.get("GROQ_API_KEY", "")
+        api_key = resolve_key(req.api_key)
         count = ingest_news_articles(force=True, api_key=api_key)
         status = get_ingestion_status()
         return {"ok": True, "chunks_ingested": count, **status}
@@ -786,7 +791,7 @@ async def news_ingest(req: IngestRequest):
 async def news_rag_query(req: NewsQueryRequest):
     """RAG query over ingested health/longevity articles."""
     try:
-        result = query_news(req.question, req.api_key)
+        result = query_news(req.question, resolve_key(req.api_key))
         return {"ok": True, **result}
     except Exception as e:
         traceback.print_exc()
@@ -797,7 +802,7 @@ async def news_rag_query(req: NewsQueryRequest):
 async def debate(req: DebateRequest):
     """Run Budget Optimizer vs Nutritionist debate on the current basket."""
     try:
-        result = debate_basket(req.items, req.api_key)
+        result = debate_basket(req.items, resolve_key(req.api_key))
         return {"ok": True, **result}
     except Exception as e:
         traceback.print_exc()
@@ -829,7 +834,7 @@ async def debate_chat(req: DebateChatRequest):
                 agent_id=agent_id,
                 message=req.message,
                 history=req.history,
-                groq_key=req.api_key,
+                groq_key=resolve_key(req.api_key),
                 items=req.items,
                 basket_text=basket_text,
             )
