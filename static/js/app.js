@@ -20,12 +20,24 @@ function save(key) {
 }
 
 // ── API ──────────────────────────────────────────────────────────────────────
+async function _safeJson(r) {
+  const text = await r.text();
+  if (!r.ok || text.trimStart().startsWith('<')) {
+    // Render free-tier returns an HTML page while the server is cold-starting
+    const isWaking = r.status === 502 || r.status === 503 || r.status === 504 || text.trimStart().startsWith('<');
+    throw new Error(isWaking
+      ? 'Server is waking up — please wait a moment and try again'
+      : `Server error ${r.status}`);
+  }
+  try { return JSON.parse(text); }
+  catch { throw new Error('Bad response from server — please try again'); }
+}
 const api = {
   async post(url, body) {
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    return r.json();
+    return _safeJson(r);
   },
-  async get(url) { return (await fetch(url)).json(); },
+  async get(url) { return _safeJson(await fetch(url)); },
 };
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -899,7 +911,10 @@ async function findAlternative(idx) {
       panelContent.innerHTML = '<span class="text-muted text-sm">No alternatives found in Mercadona catalogue.</span>';
     }
   } catch (e) {
-    panelContent.innerHTML = `<span style="color:var(--error)" class="text-sm">Error loading alternatives: ${e.message}</span>`;
+    const isWaking = e.message && e.message.includes('waking');
+    panelContent.innerHTML = isWaking
+      ? `<span style="color:var(--warning,#f59e0b)" class="text-sm">⏳ ${e.message} <button onclick="findAlternative(${idx})" style="margin-left:8px;font-size:.75rem;padding:2px 8px" class="btn btn-sm">Retry</button></span>`
+      : `<span style="color:var(--error)" class="text-sm">Error loading alternatives: ${e.message}</span>`;
   }
 }
 
