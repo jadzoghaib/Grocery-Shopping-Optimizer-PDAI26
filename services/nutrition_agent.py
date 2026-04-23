@@ -12,19 +12,13 @@ from __future__ import annotations
 
 import json as _json
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_groq import ChatGroq
-from langgraph.prebuilt import create_react_agent
-
-from services.nutrition_tools import calculate_macros, lookup_food, search_nutrition_knowledge
+# Heavy imports (langchain_core, langchain_groq, langgraph, nutrition_tools) are
+# deferred to first use inside _build_nutrition_agent / nutrition_answer so the
+# FastAPI server can bind its port without loading these large packages at startup.
 
 # ── Pinned model (same as shopping + grocery chat) ────────────────────────────
 
 NUTRITION_MODEL = "llama-3.3-70b-versatile"
-
-# ── Tools ─────────────────────────────────────────────────────────────────────
-
-_TOOLS = [calculate_macros, lookup_food, search_nutrition_knowledge]
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
@@ -53,19 +47,29 @@ This allows the user to optionally import the plan into the Meal Planner.
 TONE: Practical, encouraging, evidence-based. Use plain language. No unnecessary caveats — give direct, actionable advice.
 """
 
-# ── Agent builder ─────────────────────────────────────────────────────────────
+# ── Agent builder (all heavy imports are lazy) ────────────────────────────────
 
 def _build_nutrition_agent(api_key: str):
-    """Build and return a compiled LangGraph ReAct agent for nutrition coaching."""
+    """Build and return a compiled LangGraph ReAct agent for nutrition coaching.
+
+    langchain_core, langgraph, and nutrition_tools are imported here — not at
+    module level — so the FastAPI server can bind its port before these large
+    packages are loaded.
+    """
+    from langgraph.prebuilt import create_react_agent  # lazy
     from core.llm_config import build_llm
+    from services.nutrition_tools import (  # lazy — also triggers langchain_core import
+        calculate_macros, lookup_food, search_nutrition_knowledge
+    )
     llm = build_llm(api_key.strip(), temperature=0.3)
-    return create_react_agent(llm, tools=_TOOLS)
+    return create_react_agent(llm, tools=[calculate_macros, lookup_food, search_nutrition_knowledge])
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def nutrition_answer(question: str, messages_history: list, api_key: str) -> str:
     """Run the nutrition specialist ReAct agent. Returns final text response."""
+    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage  # lazy
     agent = _build_nutrition_agent(api_key)
 
     lc_messages = [SystemMessage(content=NUTRITION_SYSTEM_PROMPT)]

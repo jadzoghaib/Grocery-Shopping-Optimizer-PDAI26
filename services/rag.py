@@ -2,18 +2,14 @@
 
 The LLM has two tools and decides when and how to use them.
 Single provider: Groq via langchain-groq + langgraph create_react_agent.
+
+Heavy imports (sklearn, langchain_core, langgraph) are deferred to first use
+so the server can bind its port before loading these large packages.
 """
 import json as _json
 
 import pandas as pd
 from core.cache import cache_data
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_core.tools import tool
-from langchain_groq import ChatGroq
-from langgraph.prebuilt import create_react_agent
 
 
 # ── Mercadona index ────────────────────────────────────────────────────────────
@@ -21,6 +17,7 @@ from langgraph.prebuilt import create_react_agent
 @cache_data(ttl=604800)
 def _load_index():
     from core.data import load_mercadona_db
+    from sklearn.feature_extraction.text import TfidfVectorizer  # lazy — ~50 MB
     df = load_mercadona_db().dropna(subset=["name"]).reset_index(drop=True)
     vectorizer = TfidfVectorizer(ngram_range=(1, 2), analyzer="word", min_df=1)
     matrix = vectorizer.fit_transform(df["name"].astype(str)) if not df.empty else vectorizer.fit_transform(["placeholder"])
@@ -28,6 +25,7 @@ def _load_index():
 
 
 def retrieve(query: str, top_k: int = 5) -> str:
+    from sklearn.metrics.pairwise import cosine_similarity  # lazy
     df, vectorizer, matrix = _load_index()
     if df.empty:
         return "No Mercadona product data available."
@@ -45,6 +43,7 @@ def retrieve(query: str, top_k: int = 5) -> str:
 
 def search_products(query: str, top_k: int = 10, min_score: float = 0.1) -> pd.DataFrame:
     """Return top matching Mercadona products as a DataFrame (no LLM)."""
+    from sklearn.metrics.pairwise import cosine_similarity  # lazy
     df, vectorizer, matrix = _load_index()
     if df.empty:
         return pd.DataFrame(columns=["name", "price", "unit", "url"])
@@ -67,36 +66,6 @@ def is_valid_key(key: str) -> bool:
 CHAT_MODEL = "llama-3.3-70b-versatile"
 
 
-# ── LangChain tools ────────────────────────────────────────────────────────────
-
-@tool
-def search_recipes(query: str, top_k: int = 5) -> str:
-    """Search the recipe database. Use for: finding recipes by name, cuisine or ingredient,
-    listing a recipe's ingredients, checking nutrition (calories, protein, carbs, fat),
-    meal suggestions, or any cooking question."""
-    try:
-        from services.retrieval import retrieve_recipes
-        result = retrieve_recipes(query, top_k=int(top_k))
-        return result or "No recipes found."
-    except Exception as e:
-        return f"Tool error: {e}"
-
-
-@tool
-def search_mercadona(query: str, top_k: int = 5) -> str:
-    """Search the Mercadona supermarket product catalog. Use for: finding products,
-    checking prices, looking up specific ingredients available at Mercadona,
-    or building a shopping basket."""
-    try:
-        result = retrieve(query, top_k=int(top_k))
-        return result or "No Mercadona products found."
-    except Exception as e:
-        return f"Tool error: {e}"
-
-
-_TOOLS = [search_recipes, search_mercadona]
-
-
 # ── System prompt ──────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = (
@@ -116,19 +85,51 @@ SYSTEM_PROMPT = (
 )
 
 
-# ── Agent builder ──────────────────────────────────────────────────────────────
+# ── Agent builder (all heavy imports are lazy) ─────────────────────────────────
 
 def _build_grocery_agent(api_key: str):
-    """Build and return a compiled LangGraph ReAct agent for grocery chat."""
+    """Build and return a compiled LangGraph ReAct agent for grocery chat.
+
+    langchain_core, langchain_groq, and langgraph are imported here — not at
+    module level — so the FastAPI server can bind its port before these large
+    packages are loaded (important on memory-constrained hosts like Render free tier).
+    """
+    from langchain_core.tools import tool as lc_tool  # lazy — ~150 MB combined
+    from langgraph.prebuilt import create_react_agent  # lazy
     from core.llm_config import build_llm
+
+    @lc_tool
+    def search_recipes(query: str, top_k: int = 5) -> str:
+        """Search the recipe database. Use for: finding recipes by name, cuisine or ingredient,
+        listing a recipe's ingredients, checking nutrition (calories, protein, carbs, fat),
+        meal suggestions, or any cooking question."""
+        try:
+            from services.retrieval import retrieve_recipes
+            result = retrieve_recipes(query, top_k=int(top_k))
+            return result or "No recipes found."
+        except Exception as e:
+            return f"Tool error: {e}"
+
+    @lc_tool
+    def search_mercadona(query: str, top_k: int = 5) -> str:
+        """Search the Mercadona supermarket product catalog. Use for: finding products,
+        checking prices, looking up specific ingredients available at Mercadona,
+        or building a shopping basket."""
+        try:
+            result = retrieve(query, top_k=int(top_k))
+            return result or "No Mercadona products found."
+        except Exception as e:
+            return f"Tool error: {e}"
+
     llm = build_llm(api_key.strip(), temperature=0.3)
-    return create_react_agent(llm, tools=_TOOLS)
+    return create_react_agent(llm, tools=[search_recipes, search_mercadona])
 
 
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def rag_answer(question: str, messages_history: list, api_key: str) -> str:
     """Run the grocery ReAct agent and return the final text response."""
+    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage  # lazy
     agent = _build_grocery_agent(api_key)
 
     # Build LangChain message list
