@@ -248,6 +248,35 @@ async def groq_pool_status():
     return {"ok": True, **pool_status()}
 
 
+@app.get("/api/memory")
+async def memory_usage():
+    """Report current process RSS memory usage (reads /proc/self/status on Linux)."""
+    import sys
+    try:
+        # Linux: read VmRSS from /proc/self/status (no extra deps)
+        rss_kb = None
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    rss_kb = int(line.split()[1])
+                    break
+        if rss_kb is not None:
+            rss_mb = round(rss_kb / 1024, 1)
+            return {
+                "ok": True,
+                "rss_mb": rss_mb,
+                "limit_mb": 512,
+                "used_pct": round(rss_mb / 512 * 100, 1),
+                "headroom_mb": round(512 - rss_mb, 1),
+                "disable_dash": bool(os.environ.get("DISABLE_DASH")),
+                "disable_news_scheduler": bool(os.environ.get("DISABLE_NEWS_SCHEDULER")),
+            }
+    except Exception:
+        pass
+    # Fallback: use sys for a rough estimate
+    return {"ok": False, "error": "Could not read /proc/self/status (non-Linux?)"}
+
+
 @app.post("/api/meal-plan/generate")
 async def generate_meal_plan(req: MealPlanRequest):
     try:
