@@ -46,7 +46,9 @@ async def _startup():
     groq_key = os.environ.get("GROQ_API_KEY", "")
     if groq_key:
         os.environ["GROQ_API_KEY"] = groq_key
-    start_scheduler()   # begins 60-second-delayed first ingest (RAG + CAG), then every 6 h
+    # Skip heavy news scheduler on memory-constrained environments (e.g. Render free tier)
+    if not os.environ.get("DISABLE_NEWS_SCHEDULER"):
+        start_scheduler()   # begins 60-second-delayed first ingest (RAG + CAG), then every 6 h
 
     # Pre-warm the recipe/Mercadona cache in a background thread so the first
     # meal-plan request is instant (instead of waiting for a cold Mercadona crawl).
