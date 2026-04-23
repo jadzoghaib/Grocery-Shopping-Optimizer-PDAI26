@@ -274,7 +274,7 @@ def rule_based_select(
         # If we're mixing solids and volumes, assume 1:1 (same as the LLM prompt).
         pass
 
-    packs = max(1, math.ceil(needed / pack_val)) if pack_val > 0 else 1
+    packs = min(10, max(1, math.ceil(needed / pack_val))) if pack_val > 0 else 1
     unit_price = float(top.get("price", 0) or 0)
     total_price = round(packs * unit_price, 2)
 

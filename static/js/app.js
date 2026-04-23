@@ -817,6 +817,16 @@ function renderPlannerShop(el) {
       <div class="debate-thread" id="debate-thread">
         <div class="debate-thread-empty" id="debate-empty-hint">Click <strong>Debate All</strong> to start, or select agents and type a message below.</div>
       </div>
+      <!-- Debate staging panel (shown when agents suggest products) -->
+      <div id="debate-staging-panel" style="display:none;margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-weight:600;font-size:.85rem"><i class="fa-solid fa-list-check" style="margin-right:6px;color:var(--primary)"></i>Suggested items</span>
+          <button onclick="_addAllStagedToBasket()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.8rem;cursor:pointer;font-weight:600">
+            <i class="fa-solid fa-basket-shopping"></i> Add all to basket
+          </button>
+        </div>
+        <div id="debate-staging-items"></div>
+      </div>
       <div class="debate-input-wrap">
         <input type="text" id="debate-input"
           placeholder="Ask agents… or type @budget @nutritionist @moderator to target"
@@ -954,8 +964,10 @@ function toggleDebateAgent(agentId) {
 
 function clearDebate() {
   _debateHistory = [];
+  _debateStagingList = [];
   const thread = document.getElementById('debate-thread');
   if (thread) thread.innerHTML = '<div class="debate-thread-empty" id="debate-empty-hint">Click <strong>Debate All</strong> to start, or select agents and type a message below.</div>';
+  _renderDebateStagingPanel();
 }
 
 function _appendDebateBubble(role, agentId, content) {
@@ -1067,18 +1079,18 @@ function _renderDebateActions(actions, bubbleContentEl) {
   if (!actions || !actions.length) return;
   const wrap = document.createElement('div');
   wrap.className = 'debate-actions';
-  actions.forEach((act, i) => {
+  actions.forEach((act) => {
     const btn = document.createElement('button');
     const isReplace = act.type === 'replace';
     btn.className = `debate-action-btn ${isReplace ? 'btn-replace' : 'btn-add'}`;
-    btn.innerHTML = `<i class="fa-solid fa-${isReplace ? 'arrows-rotate' : 'basket-shopping'}"></i> ${act.label || (isReplace ? 'Replace' : 'Add to basket')}`;
-    btn.onclick = () => _executeDebateAction(act, btn);
+    btn.innerHTML = `<i class="fa-solid fa-${isReplace ? 'arrows-rotate' : 'plus'}"></i> ${act.label || (isReplace ? 'Stage replacement' : 'Add to list')}`;
+    btn.onclick = () => _stageDebateAction(act, btn);
     wrap.appendChild(btn);
   });
   bubbleContentEl.appendChild(wrap);
 }
 
-async function _executeDebateAction(act, btn) {
+async function _stageDebateAction(act, btn) {
   const query = act.query || act.label || '';
   if (!query) { toast('No search query for this action', 'error'); return; }
 
@@ -1094,31 +1106,104 @@ async function _executeDebateAction(act, btn) {
       return;
     }
 
-    const product = res.products[0]; // best TF-IDF match
+    const product = res.products[0];
     const name    = product.name || query;
     const price   = parseFloat(product.price) || 0;
     const unit    = product.unit || '';
     const url     = product.url || product.link || '';
 
-    if (act.type === 'replace' && act.remove) {
-      // Remove old item from basket (if present), add new one
-      const oldIdx = S.basket.findIndex(b => b.name.toLowerCase().includes((act.remove || '').toLowerCase()));
-      if (oldIdx !== -1) S.basket.splice(oldIdx, 1);
+    // Check if already staged (by name)
+    const already = _debateStagingList.find(s => s.name === name);
+    if (already) {
+      toast(`"${name.slice(0, 30)}" already in staging list`, 'info');
+      btn.classList.remove('btn-loading');
+      btn.innerHTML = `<i class="fa-solid fa-check"></i> Already staged`;
+      btn.disabled = true;
+      return;
     }
 
-    addToBasket({ name, price, qty: unit, url, count: 1 });
-    toast(`✅ Added "${name}" to basket (€${price.toFixed(2)})`, 'success');
+    const id = `stage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    _debateStagingList.push({
+      id,
+      name,
+      price,
+      qty: unit,
+      url,
+      count: 1,
+      removeQuery: act.type === 'replace' ? (act.remove || null) : null,
+    });
 
-    // Update button to show success + product name
+    _renderDebateStagingPanel();
+    toast(`➕ "${name.slice(0, 30)}" added to staging list`, 'success');
+
     btn.classList.remove('btn-loading');
-    btn.innerHTML = `<i class="fa-solid fa-check"></i> Added — ${name.slice(0, 28)}${name.length > 28 ? '…' : ''}`;
+    btn.innerHTML = `<i class="fa-solid fa-check"></i> Staged`;
     btn.disabled = true;
-    btn.style.background = '#10b981';
+    btn.style.background = 'var(--primary)';
+    btn.style.color = '#fff';
   } catch (e) {
     toast('Search error: ' + e.message, 'error');
     btn.classList.remove('btn-loading');
     btn.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Error`;
   }
+}
+
+function _renderDebateStagingPanel() {
+  const panel = document.getElementById('debate-staging-panel');
+  const container = document.getElementById('debate-staging-items');
+  if (!panel || !container) return;
+
+  if (!_debateStagingList.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+
+  container.innerHTML = '';
+  _debateStagingList.forEach(item => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:.82rem';
+    row.innerHTML = `
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.name}">${item.name}</span>
+      <span style="color:var(--text-light);white-space:nowrap">€${item.price.toFixed(2)}</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="_stagingAdjust('${item.id}',-1)" style="width:22px;height:22px;border:1px solid var(--border);background:var(--surface-alt);border-radius:4px;cursor:pointer;font-size:.8rem;display:flex;align-items:center;justify-content:center">−</button>
+        <span id="staging-qty-${item.id}" style="min-width:18px;text-align:center;font-weight:600">${item.count}</span>
+        <button onclick="_stagingAdjust('${item.id}',1)" style="width:22px;height:22px;border:1px solid var(--border);background:var(--surface-alt);border-radius:4px;cursor:pointer;font-size:.8rem;display:flex;align-items:center;justify-content:center">+</button>
+      </div>
+      <button onclick="_stagingRemove('${item.id}')" style="border:none;background:none;cursor:pointer;color:var(--error);font-size:.85rem;padding:0 2px" title="Remove from list"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function _stagingAdjust(id, delta) {
+  const item = _debateStagingList.find(s => s.id === id);
+  if (!item) return;
+  item.count = Math.max(1, Math.min(10, item.count + delta));
+  const el = document.getElementById(`staging-qty-${id}`);
+  if (el) el.textContent = item.count;
+}
+
+function _stagingRemove(id) {
+  _debateStagingList = _debateStagingList.filter(s => s.id !== id);
+  _renderDebateStagingPanel();
+}
+
+function _addAllStagedToBasket() {
+  if (!_debateStagingList.length) { toast('No items in staging list', 'error'); return; }
+  _debateStagingList.forEach(item => {
+    if (item.removeQuery) {
+      // Replace: remove old item from basket if present
+      const oldIdx = S.basket.findIndex(b => b.name.toLowerCase().includes(item.removeQuery.toLowerCase()));
+      if (oldIdx !== -1) S.basket.splice(oldIdx, 1);
+    }
+    addToBasket({ name: item.name, price: item.price, qty: item.qty, url: item.url, count: item.count });
+  });
+  const n = _debateStagingList.length;
+  _debateStagingList = [];
+  _renderDebateStagingPanel();
+  toast(`✅ Added ${n} item${n !== 1 ? 's' : ''} to basket`, 'success');
 }
 
 async function sendDebateMessage() {
@@ -1995,6 +2080,7 @@ const DEBATE_AGENTS = {
 };
 let _debateHistory     = [];
 let _debateActiveAgents = new Set(['budget', 'nutrition', 'moderator']);
+let _debateStagingList  = [];   // { id, name, price, qty, url, count, removeQuery }
 
 // Mapping: NUTRIENT_META key → { driKey, toMcgOrMg (converts IU/g to the DRI unit) }
 const _NUTRIENT_TO_DRI = {

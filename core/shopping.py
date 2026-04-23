@@ -117,6 +117,32 @@ def _get_tfidf_index():
     return _load_index()
 
 
+_NON_FOOD_BLOCKLIST = frozenset([
+    # Hygiene / personal care
+    "toallita", "toallitas", "pañal", "pañales", "compresa", "compresas",
+    "tampón", "tampones", "gel de ducha", "champú", "champu",
+    "acondicionador", "pasta de dientes", "cepillo de dientes",
+    "desodorante", "colonia", "perfume", "crema hidratante",
+    "protector solar", "aftershave", "maquillaje", "loción",
+    "jabón de manos", "jabon de manos",
+    # Cleaning / household
+    "detergente", "suavizante", "lejía", "lejia", "limpiador",
+    "fregasuelos", "fregaplatos", "limpiacristales", "ambientador",
+    "insecticida", "papel higiénico", "papel higienico",
+    "papel de cocina", "papel absorbente", "esponja", "bayeta",
+    "bolsa de basura", "bolsas de basura", "papel aluminio",
+    "film transparente", "film cocina",
+    # Baby non-food
+    "crema de bebe", "crema bebé", "pañal bebé",
+])
+
+
+def _is_non_food(product_name: str) -> bool:
+    """Return True if the product name matches a known non-food keyword."""
+    name_lower = product_name.lower()
+    return any(kw in name_lower for kw in _NON_FOOD_BLOCKLIST)
+
+
 def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, float]:
     """TF-IDF candidate retrieval with English → Spanish fallback.
 
@@ -124,6 +150,10 @@ def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, f
     contains an additional ``_score`` column with per-row cosine similarity
     (attached for downstream use by the eval harness and the match-quality
     classifier). ``top1_cosine_score`` is 0.0 when no candidates match.
+
+    Non-food products (cleaning supplies, hygiene items, etc.) are filtered
+    out before returning, so grocery ingredients never match wipes, detergent,
+    paper towels, etc.
     """
     from sklearn.metrics.pairwise import cosine_similarity
 
@@ -138,13 +168,18 @@ def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, f
 
     def _score(query: str) -> tuple[pd.DataFrame, float]:
         scores = cosine_similarity(vectorizer.transform([query]), matrix).flatten()
-        idx = scores.argsort()[::-1][:top_k]
+        idx = scores.argsort()[::-1][:top_k * 3]  # fetch extra to allow for filtering
         idx = [i for i in idx if scores[i] >= 0.05]
         if not idx:
             return pd.DataFrame(), 0.0
         hits = df.iloc[idx].copy().reset_index(drop=True)
         hits["_score"] = [float(scores[i]) for i in idx]
-        return hits, float(scores[idx[0]])
+        # Filter out non-food products
+        hits = hits[~hits["name"].astype(str).apply(_is_non_food)].reset_index(drop=True)
+        hits = hits.head(top_k)
+        if hits.empty:
+            return pd.DataFrame(), 0.0
+        return hits, float(hits["_score"].iloc[0])
 
     # English first.
     hits, top1 = _score(name)
@@ -397,7 +432,7 @@ def _format_candidates(hits: pd.DataFrame) -> str:
 
 def _row_from_selected(sp: SelectedProduct) -> dict:
     """Convert a validated SelectedProduct into the shopping-list DataFrame row shape."""
-    packs = int(math.ceil(float(sp.packs_needed or 1)))
+    packs = min(10, int(math.ceil(float(sp.packs_needed or 1))))
     return {
         "Ingredient": sp.ingredient,
         "Qty Needed": sp.total_needed,
@@ -418,7 +453,7 @@ def _row_from_fallback(fb: dict) -> dict:
         "Qty Needed": fb.get("total_needed", ""),
         "SKU": fb.get("product_name", ""),
         "Pack Size": fb.get("pack_size", ""),
-        "Count": int(fb.get("packs_needed", 0) or 0),
+        "Count": min(10, int(fb.get("packs_needed", 0) or 0)),
         "Unit Price": float(fb.get("unit_price", 0) or 0),
         "Total Price": float(fb.get("total_price", 0) or 0),
         "Link": str(fb.get("url", "") or ""),
