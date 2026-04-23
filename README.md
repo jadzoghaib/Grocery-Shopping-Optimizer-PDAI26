@@ -240,12 +240,3 @@ python -m eval.run_eval --mode replay --out eval/results/$(date +%F)/
 
 Outputs `metrics.json` (Wilson 95% CIs + dataset SHA-256) and `report.md` (Raw LLM vs Post-fallback vs Baseline, top-10 failures, match_quality confusion matrix). Exit code `2` on regression below `--threshold-top1` (default 0.70) for CI gating.
 
----
-
-## Why Groq Only?
-
-Earlier versions had multiple LLM providers selectable at runtime. We consolidated to Groq for three reasons:
-
-1. **Determinism** — `temperature=0, seed=42` gives near-identical outputs across runs; provider-switching broke the content-addressed cache.
-2. **Simpler auth** — one key covers all pipelines. No per-feature key management.
-3. **Resilience through fallbacks** — instead of provider redundancy, every Groq call that fails routes to a deterministic Python fallback. A Groq outage degrades gracefully instead of requiring a live failover to a different model with different output characteristics.
