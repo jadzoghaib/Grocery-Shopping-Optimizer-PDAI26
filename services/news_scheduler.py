@@ -5,7 +5,7 @@ Runs in a daemon thread inside the FastAPI process (no external service needed).
 Schedule
 --------
   First run  : 60 seconds after server start   (lets uvicorn fully initialise)
-  Subsequent : every 6 hours
+  Subsequent : every 7 days
 
 Usage (from server.py)
 ----------------------
@@ -67,7 +67,7 @@ def start_scheduler() -> None:
     _scheduler.add_job(
         _run_ingest,
         trigger="interval",
-        hours=6,
+        weeks=1,
         id="news_ingest",
         next_run_time=first_run,
         misfire_grace_time=300,   # allow up to 5 min late if server was busy
@@ -77,7 +77,7 @@ def start_scheduler() -> None:
     _scheduler.start()
     logger.info(
         f"[scheduler] Started — first news ingest at "
-        f"{first_run.strftime('%H:%M:%S UTC')}, then every 6 h"
+        f"{first_run.strftime('%H:%M:%S UTC')}, then every 7 days"
     )
 
 
