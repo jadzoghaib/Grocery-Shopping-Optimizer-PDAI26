@@ -16,10 +16,12 @@ from pydantic import BaseModel
 import uvicorn
 
 # ── Core imports ──────────────────────────────────────────────────────────────
+# NOTE: Heavy packages (Dash/Plotly, langgraph, sklearn) are imported lazily
+# so that uvicorn can bind its port before loading them (Render free-tier OOM fix).
 from core.config import CUISINE_MAP
 from core.data import load_recipe_data, load_mercadona_db
-from core.optimizer import optimize_meal_plan
-from core.shopping import optimize_shopping_list_groq
+# core.optimizer (numpy+pulp) and core.shopping (langgraph) are imported lazily
+# inside the route handlers that need them — see _get_optimizer() / _get_shopping().
 from core.groq_client import groq_with_rotation, resolve_key, pool_status, make_groq_client
 from services.rag import rag_answer, parse_basket_intent, search_products
 from services.nutrition_agent import nutrition_answer, parse_nutrition_plan
@@ -29,9 +31,20 @@ from services.body import (fetch_health_news, analyze_nutrients, get_supplement_
                            NUTRIENT_META, estimate_extended_nutrients, body_coach_chat)
 from services.news_rag import query_news, get_ingestion_status, ingest_news_articles, get_trends
 from services.news_scheduler import start_scheduler, stop_scheduler
+
+# dashboards.cache is a plain dict — always safe to import.
 from dashboards import cache as dash_cache
-from dashboards.app import dash_app
-from a2wsgi import WSGIMiddleware
+
+# Dash + Plotly (dashboards.app) are very heavy (~150 MB).
+# Set DISABLE_DASH=1 on memory-constrained deployments (e.g. Render free tier).
+_DASH_ENABLED = not os.environ.get("DISABLE_DASH")
+if _DASH_ENABLED:
+    try:
+        from dashboards.app import dash_app
+        from a2wsgi import WSGIMiddleware
+    except Exception as _dash_err:
+        print(f"[server] Dash disabled (import error): {_dash_err}")
+        _DASH_ENABLED = False
 
 _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
@@ -268,6 +281,7 @@ async def generate_meal_plan(req: MealPlanRequest):
                     udf["ingredients"] = ""
                 df = pd.concat([df, udf], ignore_index=True)
 
+            from core.optimizer import optimize_meal_plan  # lazy — numpy+pulp
             return optimize_meal_plan(
                 df,
                 target_calories=_req.calories * _req.people,
@@ -423,6 +437,7 @@ async def search_recipes_by_name(q: str = Query("", alias="q")):
 @app.post("/api/shopping-list/generate")
 async def generate_shopping_list(req: ShoppingListRequest):
     try:
+        from core.shopping import optimize_shopping_list_groq  # lazy — langgraph
         client = make_groq_client(resolve_key(req.groq_key))
         result = optimize_shopping_list_groq(req.items, client, people_count=req.people)
         records = _df_to_records(result)
@@ -848,8 +863,9 @@ async def debate_chat(req: DebateChatRequest):
         return {"ok": False, "error": str(e)}
 
 
-# ── Dash dashboards ──────────────────────────────────────────────────────────
-app.mount("/dash", WSGIMiddleware(dash_app.server))
+# ── Dash dashboards (only when DISABLE_DASH is not set) ──────────────────────
+if _DASH_ENABLED:
+    app.mount("/dash", WSGIMiddleware(dash_app.server))
 
 # ── Static files (must be last) ──────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")

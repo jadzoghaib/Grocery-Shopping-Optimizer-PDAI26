@@ -68,8 +68,9 @@ from core.shopping_schemas import (
     SelectionResponse,
 )
 
-# LangGraph imports — langgraph is a required dependency.
-from langgraph.graph import StateGraph, END
+# LangGraph imports are deferred inside _build_shopping_graph() so that
+# importing this module at server startup does not load the large langgraph
+# package before uvicorn can bind its port (avoids OOM on Render free tier).
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -678,6 +679,7 @@ def _build_shopping_graph():
 
     Returns the compiled graph object (callable as ``graph.invoke(state)``).
     """
+    from langgraph.graph import StateGraph, END  # lazy — deferred to first use
     builder = StateGraph(ShoppingState)
 
     # Register nodes.
@@ -698,9 +700,16 @@ def _build_shopping_graph():
     return builder.compile()
 
 
-# Compile the graph once at import time so subsequent calls share the same
-# compiled object (avoids re-compiling on every request).
-_SHOPPING_GRAPH = _build_shopping_graph()
+# Compiled graph — initialised lazily on first request so that importing this
+# module at server startup does not trigger the langgraph compilation step.
+_SHOPPING_GRAPH = None
+
+
+def _get_shopping_graph():
+    global _SHOPPING_GRAPH
+    if _SHOPPING_GRAPH is None:
+        _SHOPPING_GRAPH = _build_shopping_graph()
+    return _SHOPPING_GRAPH
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -747,7 +756,7 @@ def optimize_shopping_list_groq(
             "error": "",
         }
 
-        final_state: ShoppingState = _SHOPPING_GRAPH.invoke(initial_state)
+        final_state: ShoppingState = _get_shopping_graph().invoke(initial_state)
 
         # Surface any error that propagated through the graph.
         if final_state.get("error"):
