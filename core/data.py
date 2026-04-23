@@ -8,7 +8,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import requests
-import streamlit as st
+from core.cache import cache_data
 
 try:
     from core.ingredient_translations import ENGLISH_TO_SPANISH
@@ -27,7 +27,7 @@ _MERC_HEADS    = {
 }
 _DATA_DIR      = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 _CACHE_FILE    = "mercadona_cache.csv"   # persistent weekly cache
-_CACHE_MAX_AGE = 7                        # days
+_CACHE_MAX_AGE = 365                      # days – use file cache aggressively; only re-fetch if >1 year old
 
 
 def _cache_path():
@@ -63,7 +63,7 @@ def _extract_products(cat_data, cat_name=""):
     return rows
 
 
-@st.cache_data(ttl=604800)   # 7-day Streamlit-level cache (backs up the file cache)
+@cache_data(ttl=604800)
 def load_mercadona_db(lang="en", wh="bcn1"):
     """
     Returns the full Mercadona catalogue in English.
@@ -124,7 +124,7 @@ def load_mercadona_db(lang="en", wh="bcn1"):
     return pd.DataFrame(columns=["id", "name", "price", "unit", "category", "url"])
 
 
-@st.cache_data
+@cache_data
 def load_recipe_data():
     # Prefer the unit-enriched version; fall back to the original
     enriched_csv = os.path.join(_DATA_DIR, "recipes_enriched.csv")
@@ -179,16 +179,18 @@ def load_recipe_data():
         allowed_set = set(t.lower() for t in ALLOWED_RECIPE_TERMS)
         blocked_set = set(t.lower() for t in BLOCKED_RECIPE_TERMS)
 
-        def is_allowed(row):
-            cat = str(row.get('RecipeCategory', '')).lower()
-            keywords = str(row.get('Keywords', '')).lower()
-            if any(b in cat for b in blocked_set) or any(b in keywords for b in blocked_set):
-                return False
-            if cat in allowed_set:
-                return True
-            return any(term in cat or term in keywords for term in allowed_set)
+        # Vectorized filter — 10-50× faster than df.apply(row_fn, axis=1)
+        cat_col  = df.get('RecipeCategory', pd.Series('', index=df.index)).fillna('').str.lower()
+        kw_col   = df.get('Keywords',       pd.Series('', index=df.index)).fillna('').str.lower()
+        combined = cat_col + ' ' + kw_col   # single string to search once per term
 
-        mask = df.apply(is_allowed, axis=1)
+        blocked_pat = '|'.join(re.escape(b) for b in blocked_set) if blocked_set else None
+        allowed_pat = '|'.join(re.escape(a) for a in allowed_set) if allowed_set else None
+
+        not_blocked = ~combined.str.contains(blocked_pat, regex=True, na=False) if blocked_pat else pd.Series(True, index=df.index)
+        is_allowed_vec = combined.str.contains(allowed_pat, regex=True, na=False) if allowed_pat else pd.Series(True, index=df.index)
+
+        mask = not_blocked & is_allowed_vec
         df = df[mask].reset_index(drop=True)
         if df.empty:
             df = pd.read_csv(csv_path, nrows=500)
@@ -290,14 +292,11 @@ def load_recipe_data():
             if col in df.columns:
                 df[col] = df[col] / servings
 
-        # Drop rows with implausible per-serving macro values (bad data in source CSV)
+        # Drop rows with clearly implausible per-serving macro values (bad data in source CSV)
         if 'protein' in df.columns:
-            df = df[df['protein'] <= 120]   # >120g protein per serving is not realistic
+            df = df[df['protein'] <= 200]   # cap at 200g — keeps high-protein recipes valid
         if 'calories' in df.columns:
-            df = df[df['calories'] <= 1200] # >1200 kcal per serving filters bulk-batch recipes
-        # Protein physically cannot exceed calories÷4 (1g protein = 4 kcal)
-        if 'protein' in df.columns and 'calories' in df.columns:
-            df = df[df['protein'] <= (df['calories'] / 4) * 1.2]
+            df = df[df['calories'] <= 2000] # cap at 2000 kcal per serving
         df = df.reset_index(drop=True)
 
         return df

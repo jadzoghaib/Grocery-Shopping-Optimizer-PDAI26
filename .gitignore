@@ -38,6 +38,20 @@ venv.bak/
 
 # Large files
 App-demo.webm
+assets/
+
+# Server output logs (local dev only)
+server_log*.txt
+server_err*.txt
+
+# Qdrant lock file (held by running process)
+data/qdrant_news/.lock
 
 # Claude Code session files
 .claude/
+
+# LLM call logs + response cache (eval reproducibility infra)
+data/llm_logs/
+
+# Eval results snapshots (date-stamped directories under eval/results/)
+eval/results/

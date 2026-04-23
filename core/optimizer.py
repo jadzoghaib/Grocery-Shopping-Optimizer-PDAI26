@@ -57,7 +57,8 @@ def optimize_meal_plan(df, target_calories, target_protein, target_carbs, target
     # --- Ensure required columns exist ---
     for col in ['RecipeCategory', 'Keywords']:
         if col not in filtered_df.columns:
-            filtered_df[col] = filtered_df.get(col.lower(), "")
+            lower_col = filtered_df.get(col.lower())
+            filtered_df[col] = lower_col if lower_col is not None else ""
 
     cats = filtered_df['RecipeCategory'].fillna("").astype(str)
     keys = filtered_df['Keywords'].fillna("").astype(str)
@@ -115,17 +116,27 @@ def optimize_meal_plan(df, target_calories, target_protein, target_carbs, target
     na_bev_kws = [
         'smoothie', 'shake', 'juice', 'tea', 'coffee', 'lemonade', 'punch',
         'hot chocolate', 'cider', 'milkshake', 'frappe', 'mocktail',
-        'horchata', 'lassi', 'agua fresca', 'infused water',
+        'horchata', 'lassi', 'agua fresca', 'infused water', 'drink', 'beverage',
     ]
-    alc_indicators = ['alcoholic', 'cocktail', 'wine', 'beer', 'liqueur',
-                      'vodka', 'rum', 'gin', 'whiskey', 'tequila', 'brandy']
+    alc_indicators = [
+        'alcoholic', 'cocktail', 'wine', 'beer', 'liqueur', 'ale', 'lager',
+        'vodka', 'rum', 'gin', 'whiskey', 'tequila', 'brandy', 'mead', 'stout',
+    ]
+    # Exclude anything that is clearly food (meat, sauce, marinade, baked goods etc.)
+    food_exclusion_kws = [
+        'steak', 'chicken', 'beef', 'pork', 'lamb', 'fish', 'shrimp', 'salmon',
+        'marinade', 'sauce', 'roast', 'baked', 'fried', 'grilled', 'soup',
+        'stew', 'curry', 'casserole', 'pasta', 'rice', 'salad', 'sandwich',
+        'burger', 'taco', 'pizza', 'meatball', 'meatloaf', 'turkey', 'ham',
+    ]
     is_bev_na = (
         cats.isin(['Beverages', 'Shakes', 'Smoothies']) |
         check_keywords(keys, na_bev_kws) |
         check_keywords(names, na_bev_kws)
     ) & ~cats.isin(['Alcoholic Beverages']) \
       & ~check_keywords(keys, alc_indicators) \
-      & ~check_keywords(names, alc_indicators)
+      & ~check_keywords(names, alc_indicators) \
+      & ~check_keywords(names, food_exclusion_kws)
 
     # ── Main meal mask ────────────────────────────────────────────────────────
     main_kws = [
@@ -201,7 +212,6 @@ def optimize_meal_plan(df, target_calories, target_protein, target_carbs, target
     solved_plans = {}
 
     for day in days_to_solve:
-        prob = pulp.LpProblem(f"Meal_Optimization_Day_{day}", pulp.LpMaximize)
         limit = 500 if is_low_var else 300
 
         slot_indices_map = {}
@@ -249,58 +259,65 @@ def optimize_meal_plan(df, target_calories, target_protein, target_carbs, target
                 obj_rating.append(v * rating)
                 slot_cal_exprs[s_idx].append(v * cal)
 
-            prob += pulp.lpSum(vars_for_slot[s_idx]) == 1
+        # Retry with progressively relaxed tolerances if infeasible
+        best_plan = None
+        for tol_cal, tol_prot, tol_macro, use_order in [
+            (0.15, 0.15, 0.20, True),   # pass 1: normal
+            (0.25, 0.25, 0.30, False),  # pass 2: relaxed, drop calorie ordering
+            (0.40, 0.40, 0.45, False),  # pass 3: very relaxed
+        ]:
+            p = pulp.LpProblem(f"Meal_Day_{day}_tol{int(tol_cal*100)}", pulp.LpMaximize)
 
-        # Constraints
-        prob += pulp.lpSum(total_cost) <= max_budget
+            p += pulp.lpSum(total_cost) <= max_budget
 
-        c_sum = pulp.lpSum(total_cals)
-        prob += c_sum >= target_calories * 0.85
-        prob += c_sum <= target_calories * 1.15
+            c_sum = pulp.lpSum(total_cals)
+            p += c_sum >= target_calories * (1 - tol_cal)
+            p += c_sum <= target_calories * (1 + tol_cal)
 
-        p_sum = pulp.lpSum(total_prot)
-        prob += p_sum >= target_protein * 0.9
-        prob += p_sum <= target_protein * 1.1
+            p_sum = pulp.lpSum(total_prot)
+            p += p_sum >= target_protein * (1 - tol_prot)
+            p += p_sum <= target_protein * (1 + tol_prot)
 
-        carb_sum = pulp.lpSum(total_carb)
-        prob += carb_sum >= target_carbs * 0.8
-        prob += carb_sum <= target_carbs * 1.2
+            carb_sum = pulp.lpSum(total_carb)
+            p += carb_sum >= target_carbs * (1 - tol_macro)
+            p += carb_sum <= target_carbs * (1 + tol_macro)
 
-        fat_sum = pulp.lpSum(total_fat)
-        prob += fat_sum >= target_fat * 0.8
-        prob += fat_sum <= target_fat * 1.2
+            fat_sum = pulp.lpSum(total_fat)
+            p += fat_sum >= target_fat * (1 - tol_macro)
+            p += fat_sum <= target_fat * (1 + tol_macro)
 
-        # Calorie distribution: Lunch >= Breakfast >= Dinner
-        lunch_idx = next((i for i, s in enumerate(selected_slots) if 'lunch' in s.lower()), -1)
-        break_idx = next((i for i, s in enumerate(selected_slots) if 'breakfast' in s.lower()), -1)
-        dinner_idx = next((i for i, s in enumerate(selected_slots) if 'dinner' in s.lower()), -1)
+            if use_order:
+                lunch_idx = next((i for i, s in enumerate(selected_slots) if 'lunch' in s.lower()), -1)
+                break_idx = next((i for i, s in enumerate(selected_slots) if 'breakfast' in s.lower()), -1)
+                dinner_idx = next((i for i, s in enumerate(selected_slots) if 'dinner' in s.lower()), -1)
+                if lunch_idx != -1 and break_idx != -1:
+                    p += pulp.lpSum(slot_cal_exprs[lunch_idx]) >= pulp.lpSum(slot_cal_exprs[break_idx]) + 10
+                if lunch_idx != -1 and dinner_idx != -1:
+                    p += pulp.lpSum(slot_cal_exprs[lunch_idx]) >= pulp.lpSum(slot_cal_exprs[dinner_idx]) + 10
+                if break_idx != -1 and dinner_idx != -1:
+                    p += pulp.lpSum(slot_cal_exprs[break_idx]) >= pulp.lpSum(slot_cal_exprs[dinner_idx]) + 10
 
-        if lunch_idx != -1 and break_idx != -1:
-            prob += pulp.lpSum(slot_cal_exprs[lunch_idx]) >= pulp.lpSum(slot_cal_exprs[break_idx]) + 10
-        if lunch_idx != -1 and dinner_idx != -1:
-            prob += pulp.lpSum(slot_cal_exprs[lunch_idx]) >= pulp.lpSum(slot_cal_exprs[dinner_idx]) + 10
-        if break_idx != -1 and dinner_idx != -1:
-            prob += pulp.lpSum(slot_cal_exprs[break_idx]) >= pulp.lpSum(slot_cal_exprs[dinner_idx]) + 10
-
-        prob += pulp.lpSum(obj_rating)
-        prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=5))
-
-        if pulp.LpStatus[prob.status] == 'Optimal':
-            best_plan = []
             for s_idx in range(len(selected_slots)):
-                found = False
-                for r_idx in slot_indices_map[s_idx]:
-                    v = lp_vars.get((s_idx, r_idx))
-                    if v and v.varValue and v.varValue > 0.5:
-                        best_plan.append(r_idx)
-                        found = True
-                        break
-                if not found:
-                    best_plan = None
+                p += pulp.lpSum(vars_for_slot[s_idx]) == 1
+
+            p += pulp.lpSum(obj_rating)
+            p.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=5))
+
+            if pulp.LpStatus[p.status] == 'Optimal':
+                plan = []
+                for s_idx in range(len(selected_slots)):
+                    for r_idx in slot_indices_map[s_idx]:
+                        v = lp_vars.get((s_idx, r_idx))
+                        if v and v.varValue and v.varValue > 0.5:
+                            plan.append(r_idx)
+                            break
+                if len(plan) == len(selected_slots):
+                    best_plan = plan
+                    solved_plans[day] = plan
                     break
-            solved_plans[day] = best_plan
-        else:
-            return None, f"Could not find a meal combination for Day {day+1} within Budget/Constraints. (Status: {pulp.LpStatus[prob.status]})"
+
+        if best_plan is None:
+            return None, f"Could not find a meal combination for Day {day+1} within Budget/Constraints."
 
         if solved_plans.get(day) is None:
             return None, f"Could not find a meal combination for Day {day+1} within Budget/Constraints."

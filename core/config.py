@@ -25,6 +25,7 @@ CUISINE_MAP = {
                       "kosher", "low protein", "free of"],
     "Junk Food":     ["deep fried", "fried", "junk food", "fast food", "processed", "candy", "chips",
                       "fries", "onion rings", "greasy", "cheese sauce", "battered"],
+    "User Input":    ["user input"],
 }
 
 ALLOWED_RECIPE_TERMS = [
@@ -82,6 +83,8 @@ ALLOWED_RECIPE_TERMS = [
     "pork", "poultry", "meat", "seafood",
     "summer", "winter", "spring", "thanksgiving", "christmas", "hanukkah", "st. patrick's day",
     "ice cream", "frozen desserts",
+    # User-submitted recipes
+    "user input",
 ]
 
 BLOCKED_RECIPE_TERMS = [

@@ -1,0 +1,243 @@
+Nutrition Basics — Macronutrients, Micronutrients, and Energy
+
+ENERGY BALANCE
+
+Total Daily Energy Expenditure (TDEE):
+TDEE = BMR × Activity Multiplier
+
+Basal Metabolic Rate (BMR) — Mifflin-St Jeor equation (most accurate):
+Men:   BMR = (10 × weight_kg) + (6.25 × height_cm) − (5 × age) + 5
+Women: BMR = (10 × weight_kg) + (6.25 × height_cm) − (5 × age) − 161
+
+Activity multipliers:
+- Sedentary (desk job, no exercise): BMR × 1.2
+- Lightly active (1-3 days/week exercise): BMR × 1.375
+- Moderately active (3-5 days/week): BMR × 1.55
+- Very active (6-7 days/week hard training): BMR × 1.725
+- Extremely active (physical job + daily training): BMR × 1.9
+
+Example — 75 kg, 180 cm, 30-year-old male, moderately active:
+BMR = (750) + (1125) − (150) + 5 = 1,730 kcal
+TDEE = 1,730 × 1.55 = 2,682 kcal/day
+
+Energy from macronutrients:
+- Carbohydrates: 4 kcal/g
+- Protein: 4 kcal/g
+- Fat: 9 kcal/g
+- Alcohol: 7 kcal/g (no nutritional function; not a macronutrient)
+
+---
+
+MACRONUTRIENTS
+
+PROTEIN
+
+Functions: muscle synthesis and repair, enzyme production, immune function, hormone synthesis, satiety.
+
+Daily requirements:
+- Sedentary adult: 0.8 g/kg/day (RDA minimum)
+- Active adult: 1.2-1.6 g/kg/day
+- Muscle building: 1.6-2.2 g/kg/day
+- Cutting/deficit: 2.2-3.1 g/kg/day (higher to prevent muscle loss)
+- Elderly (65+): 1.2-1.6 g/kg/day (counteract sarcopenia)
+
+Protein quality:
+- Complete proteins (all 9 essential amino acids): meat, fish, eggs, dairy, soy, quinoa
+- Incomplete proteins (missing ≥1 EAA): most plant proteins (rice, beans, peas)
+- Complementary proteins: rice + beans, hummus + pita — combine to form complete profile
+
+Leucine threshold: ~2.5-3 g leucine per meal triggers maximum muscle protein synthesis (MPS). This corresponds to ~20-35g protein from high-quality sources per meal.
+
+High-protein foods per 100g:
+Chicken breast: 31g | Tuna canned: 26g | Cod: 18g | Greek yogurt: 10g | Lentils: 9g | Eggs: 13g | Cottage cheese: 11g | Tofu: 8g
+
+CARBOHYDRATES
+
+Functions: primary energy source for brain and muscles, glycogen storage, fibre for gut health.
+
+Types:
+- Simple carbohydrates (fast-digesting): glucose, fructose, sucrose — found in fruit, sugar, white bread, sweets. Rapid insulin spike.
+- Complex carbohydrates (slow-digesting): starch, glycogen — found in oats, rice, potato, legumes. Sustained energy.
+- Dietary fibre: insoluble (gut motility, found in wheat bran, vegetables) + soluble (lowers LDL cholesterol, found in oats, beans, apples)
+
+Daily requirements:
+- Sedentary adult: 3-4 g/kg/day
+- Endurance athlete: 5-7 g/kg/day
+- High-intensity training: 6-10 g/kg/day
+- Minimum (brain function): ~130 g/day
+
+Glycaemic Index (GI):
+- High GI (>70): white bread (75), rice cakes (82), glucose (100)
+- Medium GI (55-70): brown rice (68), banana (62), oats (57)
+- Low GI (<55): lentils (32), chickpeas (28), apple (36), sweet potato (44)
+
+Fibre targets: 25-35 g/day. Most adults consume <15 g/day.
+
+FATS
+
+Functions: hormone production (testosterone, estrogen), fat-soluble vitamin absorption (A, D, E, K), cell membrane structure, brain function (~60% of brain is fat), long-term energy storage.
+
+Types:
+- Saturated fats: butter, coconut oil, red meat, dairy. Raise LDL cholesterol when consumed in excess. Limit to <10% of total calories.
+- Monounsaturated fats (MUFA): olive oil, avocado, almonds. Reduce LDL, maintain HDL. Heart-protective.
+- Polyunsaturated fats (PUFA): omega-3 (EPA, DHA, ALA) and omega-6 (linoleic acid).
+  - Omega-3 (anti-inflammatory): fatty fish (salmon, sardines, mackerel), walnuts, flaxseeds, chia seeds. Target: 2-3 g EPA+DHA/day for active individuals.
+  - Omega-6 (pro-inflammatory in excess): sunflower oil, corn oil, soybean oil. Western diet omega-6:omega-3 ratio is ~15:1; target is ~4:1.
+- Trans fats: partially hydrogenated oils in processed foods. Raise LDL + lower HDL. No safe threshold — avoid entirely.
+
+Daily fat targets:
+- General adult: 0.8-1.2 g/kg/day (20-35% of total calories)
+- Keto diet: 70-80% of calories from fat
+- Low-fat diet: 20-25% of calories from fat
+
+Essential fatty acids (must be obtained from diet):
+- Linoleic acid (omega-6): found in most plant oils
+- Alpha-linolenic acid (omega-3): found in flaxseeds, chia, walnuts
+
+---
+
+MICRONUTRIENTS — KEY VITAMINS
+
+Vitamin D:
+- Functions: calcium absorption, bone density, immune function, testosterone production
+- Deficiency: common in northern latitudes; linked to depression, fatigue, poor immunity
+- Sources: sunlight (primary), fatty fish, egg yolks, fortified milk
+- Target: 1,000-4,000 IU/day supplement in winter
+
+Vitamin B12:
+- Functions: DNA synthesis, red blood cell formation, nerve function
+- Deficiency risk: vegans, vegetarians, elderly (reduced absorption), metformin users
+- Sources: meat, fish, eggs, dairy, nutritional yeast (fortified)
+- Target: 2.4 mcg/day (often 500-1,000 mcg supplement for vegans)
+
+Iron:
+- Functions: oxygen transport (haemoglobin), energy production, immune function
+- Deficiency: most common nutritional deficiency globally; causes anaemia, fatigue
+- Heme iron (well-absorbed): red meat, liver, shellfish
+- Non-heme iron (less absorbed): spinach, lentils, fortified cereals
+- Tip: vitamin C (e.g., lemon juice) increases non-heme iron absorption by 2-3×
+- Target: 8 mg/day (men), 18 mg/day (women aged 19-50)
+
+Vitamin C:
+- Functions: collagen synthesis, immune function, antioxidant, iron absorption
+- Sources: bell peppers, kiwi, strawberries, citrus, broccoli
+- Target: 75-90 mg/day; smokers +35 mg/day
+
+Folate (B9):
+- Functions: DNA synthesis, cell division, neural tube development
+- Critical for pregnancy: 400-800 mcg/day preconception and first trimester
+- Sources: leafy greens, lentils, beans, fortified cereals
+
+---
+
+MICRONUTRIENTS — KEY MINERALS
+
+Calcium:
+- Functions: bone and teeth structure, muscle contraction, nerve signalling
+- Sources: dairy, fortified plant milks, sardines (with bones), kale, broccoli, almonds
+- Target: 1,000 mg/day (adults), 1,200 mg/day (women 50+, men 70+)
+- Note: vitamin D required for absorption; caffeine and excess sodium reduce absorption
+
+Magnesium:
+- Functions: 300+ enzyme reactions, muscle relaxation, sleep quality, insulin sensitivity
+- Deficiency: common; linked to muscle cramps, poor sleep, anxiety
+- Sources: pumpkin seeds, almonds, dark chocolate (70%+), spinach, black beans
+- Target: 310-420 mg/day; 300-400 mg glycinate supplement often useful for athletes
+
+Potassium:
+- Functions: blood pressure regulation (counters sodium), muscle function, heart rhythm
+- Sources: bananas, avocado, sweet potato, spinach, white beans, salmon
+- Target: 3,500-4,700 mg/day (most adults get ~2,500 mg)
+
+Zinc:
+- Functions: immune function, wound healing, testosterone production, protein synthesis
+- Sources: oysters (highest), red meat, pumpkin seeds, legumes
+- Target: 8-11 mg/day; athletes may need more due to sweat losses
+
+---
+
+HYDRATION
+
+Water requirements:
+- General guideline: 35 ml/kg body weight per day
+- 75 kg adult: ~2.6 L/day from all sources (food contributes ~20%)
+- Exercise: add 500-750 ml per hour of moderate exercise
+- Dehydration of just 2% body weight impairs cognitive and physical performance
+
+Electrolytes during exercise:
+- Sodium: 500-1,000 mg/hour during prolonged exercise (>60 min)
+- Potassium: banana or sports drink post-workout
+- Magnesium: important for muscle relaxation; depleted by heavy sweating
+
+---
+
+MEAL TIMING
+
+Pre-workout nutrition (1-3 hours before):
+- Complex carbs: fuel glycogen stores (oats, rice, banana)
+- Moderate protein: 20-30g to prime MPS
+- Low fat: slows gastric emptying, can cause discomfort
+- Example: chicken with rice, or oats with protein powder
+
+Post-workout nutrition (within 2 hours):
+- Protein: 20-40g fast-absorbing protein (whey, chicken, eggs) to initiate MPS
+- Carbohydrates: 0.5-1 g/kg to replenish glycogen
+- The "anabolic window" is wider than once thought — overall daily protein intake matters more than exact timing
+- Example: whey shake + banana, or Greek yogurt with berries and granola
+
+Protein distribution:
+- Distributing protein across 3-5 meals optimises MPS vs. one large meal
+- Each meal should contain ≥2.5g leucine to trigger MPS maximally
+- 30-40g protein per meal is the practical target for most adults
+
+---
+
+FIBRE AND GUT HEALTH
+
+Dietary fibre targets: 25-35 g/day
+
+Soluble fibre (fermented by gut bacteria → short-chain fatty acids):
+- Sources: oats, barley, apples, psyllium husk, legumes, flaxseeds
+- Benefits: lowers LDL cholesterol, slows glucose absorption, feeds beneficial bacteria (prebiotic effect)
+
+Insoluble fibre (bulking, accelerates transit):
+- Sources: wheat bran, whole grains, vegetables, nuts
+- Benefits: prevents constipation, reduces colorectal cancer risk
+
+Prebiotic foods (feed beneficial bacteria): garlic, onions, leeks, asparagus, bananas, oats
+Probiotic foods (introduce beneficial bacteria): yogurt, kefir, sauerkraut, kimchi, miso
+
+---
+
+READING FOOD LABELS
+
+Per 100g is the most useful comparison unit — ignore "per serving" which varies by brand.
+
+Traffic light labelling (per 100g):
+- Fat: Low <3g | High >17.5g
+- Saturated fat: Low <1.5g | High >5g
+- Sugar: Low <5g | High >22.5g
+- Salt: Low <0.3g | High >1.5g
+
+Ingredient list: ingredients listed in descending order by weight. If sugar appears in the top 3 ingredients — the product is high in sugar. Watch for sugar aliases: glucose syrup, maltose, dextrose, fructose, corn syrup, agave nectar, fruit juice concentrate.
+
+"Low fat" ≠ healthy: low-fat products often compensate with added sugar. Always check the full label.
+
+---
+
+COMMON NUTRITION MYTHS
+
+Myth: Eating fat makes you fat.
+Fact: Excess calories (from any macronutrient) cause fat gain. Healthy fats (avocado, olive oil, nuts) are essential for hormonal and cardiovascular health.
+
+Myth: Carbs at night cause weight gain.
+Fact: Total daily caloric balance determines body composition — not meal timing. Eating carbs at night is fine if within TDEE.
+
+Myth: You need 8 glasses of water per day.
+Fact: Water needs vary by body size, activity, climate, and diet. Use thirst and urine colour (pale yellow = adequate) as guides.
+
+Myth: Protein is bad for your kidneys.
+Fact: High protein (up to 2.5 g/kg) is safe for healthy adults with normal kidney function. Caution is warranted only in existing kidney disease.
+
+Myth: Detox diets cleanse the body.
+Fact: The liver, kidneys, and lymphatic system continuously detoxify the body. No juice cleanse or supplement improves this process.

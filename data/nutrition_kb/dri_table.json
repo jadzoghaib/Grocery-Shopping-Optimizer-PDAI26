@@ -1,0 +1,23 @@
+{
+  "_note": "Dietary Reference Intakes (DRI) — NIH Office of Dietary Supplements. Values are daily targets.",
+  "_units": {
+    "vitamin_d_iu": "IU/day",
+    "vitamin_b12_mcg": "mcg/day",
+    "magnesium_mg": "mg/day",
+    "zinc_mg": "mg/day",
+    "omega3_g": "g/day (ALA; EPA+DHA target: 0.5g)",
+    "iron_mg": "mg/day",
+    "calcium_mg": "mg/day",
+    "vitamin_c_mg": "mg/day",
+    "folate_mcg": "mcg DFE/day",
+    "vitamin_k_mcg": "mcg/day",
+    "selenium_mcg": "mcg/day",
+    "potassium_mg": "mg/day"
+  },
+  "male_19_30":  { "vitamin_d_iu": 600,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 400, "zinc_mg": 11, "omega3_g": 1.6, "iron_mg": 8,  "calcium_mg": 1000, "vitamin_c_mg": 90, "folate_mcg": 400, "vitamin_k_mcg": 120, "selenium_mcg": 55, "potassium_mg": 3400 },
+  "male_31_50":  { "vitamin_d_iu": 600,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 420, "zinc_mg": 11, "omega3_g": 1.6, "iron_mg": 8,  "calcium_mg": 1000, "vitamin_c_mg": 90, "folate_mcg": 400, "vitamin_k_mcg": 120, "selenium_mcg": 55, "potassium_mg": 3400 },
+  "male_51plus": { "vitamin_d_iu": 800,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 420, "zinc_mg": 11, "omega3_g": 1.6, "iron_mg": 8,  "calcium_mg": 1200, "vitamin_c_mg": 90, "folate_mcg": 400, "vitamin_k_mcg": 120, "selenium_mcg": 55, "potassium_mg": 3400 },
+  "female_19_30":  { "vitamin_d_iu": 600,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 310, "zinc_mg": 8,  "omega3_g": 1.1, "iron_mg": 18, "calcium_mg": 1000, "vitamin_c_mg": 75, "folate_mcg": 400, "vitamin_k_mcg": 90,  "selenium_mcg": 55, "potassium_mg": 2600 },
+  "female_31_50":  { "vitamin_d_iu": 600,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 320, "zinc_mg": 8,  "omega3_g": 1.1, "iron_mg": 18, "calcium_mg": 1000, "vitamin_c_mg": 75, "folate_mcg": 400, "vitamin_k_mcg": 90,  "selenium_mcg": 55, "potassium_mg": 2600 },
+  "female_51plus": { "vitamin_d_iu": 800,  "vitamin_b12_mcg": 2.4, "magnesium_mg": 320, "zinc_mg": 8,  "omega3_g": 1.1, "iron_mg": 8,  "calcium_mg": 1200, "vitamin_c_mg": 75, "folate_mcg": 400, "vitamin_k_mcg": 90,  "selenium_mcg": 55, "potassium_mg": 2600 }
+}

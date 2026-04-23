@@ -1,0 +1,68 @@
+Intermittent Fasting (IF) — Protocols, Mechanisms, and Evidence
+
+Intermittent fasting refers to eating patterns that cycle between periods of fasting and eating. Unlike traditional diets, IF focuses on when to eat rather than what to eat.
+
+Common IF protocols:
+
+16:8 (Leangains protocol):
+Fast for 16 hours, eat within an 8-hour window. Most popular approach. Example: eat between 12:00-20:00, fast from 20:00-12:00. Black coffee and plain tea are permitted during the fasting window.
+
+5:2 diet:
+Eat normally 5 days per week, restrict to 500-600 kcal on 2 non-consecutive days. Developed by Dr. Michael Mosley. The 500-600 kcal should come from lean protein and vegetables on fasting days.
+
+OMAD (One Meal A Day):
+All daily calories consumed in a single meal within 1-2 hours. Very aggressive approach, typically 23:1 fast-to-eating ratio. Can be difficult to meet protein and micronutrient targets.
+
+Alternate Day Fasting (ADF):
+Alternate between normal eating days and fasting days (either complete fast or 25% of normal calories). Difficult to sustain long-term but shows strong metabolic results.
+
+Eat Stop Eat:
+One or two 24-hour fasts per week. Proposed by Brad Pilon. Example: fast from dinner Monday to dinner Tuesday.
+
+Physiological mechanisms:
+
+Insulin reduction:
+During fasting, insulin levels drop dramatically, which facilitates fat mobilisation. Fasting insulin levels typically fall 20-31% within 24 hours of fasting.
+
+Growth hormone increase:
+Fasting increases growth hormone secretion up to 5-fold in some studies, which helps preserve lean muscle mass during caloric restriction.
+
+Autophagy:
+Cellular self-cleaning process activated during fasting, particularly after 16-24 hours. Autophagy removes damaged organelles and proteins. This is a key proposed mechanism for IF's longevity and disease prevention effects. Activates via AMPK and mTOR inhibition.
+
+Metabolic switching:
+After 12-16 hours of fasting, the body switches from glucose to fat and ketones as primary fuel. This metabolic flexibility is associated with improved insulin sensitivity.
+
+Evidence for IF:
+
+Weight loss:
+IF produces comparable weight loss to continuous caloric restriction when calories are matched. A 2020 meta-analysis of 27 trials found IF reduced body weight by 0.8-13% over 8-24 weeks. Most of this is through reduced overall caloric intake rather than a unique metabolic mechanism.
+
+Metabolic health:
+IF reduces fasting insulin (20-31%), blood glucose (3-6%), and blood pressure in overweight individuals. Particularly effective for people with insulin resistance or prediabetes.
+
+Cardiovascular markers:
+Reduces LDL cholesterol, triglycerides, and inflammatory markers (IL-6, CRP) in multiple studies.
+
+Cognitive function:
+Animal studies show strong neuroprotective effects. Human evidence is limited but suggests improved focus and mental clarity, possibly from ketone production during the fasted state.
+
+Muscle preservation:
+IF with adequate protein intake (1.6-2.2g/kg/day) does not cause greater muscle loss than continuous restriction. Resistance training during IF helps preserve lean mass.
+
+Practical tips for 16:8:
+- Break the fast with a protein-rich meal (eggs, chicken, Greek yogurt)
+- Training: either fasted (for fat oxidation) or 1-2 hours after breaking the fast
+- Protein target: hit your full daily protein target within the eating window
+- Electrolytes: take sodium, potassium, magnesium if feeling fatigued during extended fasts
+- Black coffee and tea: permitted and may enhance fat oxidation and autophagy during the fasting window
+
+Who should avoid IF:
+- Pregnant or breastfeeding women
+- People with a history of eating disorders
+- Type 1 diabetics (without medical supervision)
+- Children and teenagers
+- Those who are underweight
+
+Combining IF with training:
+For strength training, protein synthesis is maximised when protein is consumed within the eating window. Pre- and post-workout nutrition remains important — aim for 30-40g leucine-rich protein (whey, chicken, eggs) around training sessions.

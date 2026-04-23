@@ -6,7 +6,7 @@ Sources:
   3. YouTube video search (youtubesearchpython, keyworded)
   4. Web search (DuckDuckGo, skipped for pure price/stock queries)
 """
-import streamlit as st
+from core.cache import cache_data
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -14,7 +14,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # ── Recipe index ──────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cache_data(show_spinner=False)
 def _recipe_index():
     try:
         from core.data import load_recipe_data
@@ -51,6 +51,23 @@ def _detect_macro_sort(query: str):
     return None
 
 
+_NAME_PREFIX_RE = None  # compiled lazily
+
+
+def _strip_query_prefix(query: str) -> str:
+    """Remove 'give me / ingredients for / recipe for …' prefixes to isolate a recipe name."""
+    import re
+    global _NAME_PREFIX_RE
+    if _NAME_PREFIX_RE is None:
+        _NAME_PREFIX_RE = re.compile(
+            r'^(?:give me |show me |what are |list |find |get |the |a )?'
+            r'(?:the )?'
+            r'(?:ingredients? (?:for|of|in) |recipe (?:for|of) |details? (?:for|of) )?',
+            re.IGNORECASE,
+        )
+    return _NAME_PREFIX_RE.sub('', query).strip()
+
+
 def retrieve_recipes(query: str, top_k: int = 5, min_score: float = 0.12) -> str:
     df, vec, mat = _recipe_index()
     if df.empty or vec is None:
@@ -60,9 +77,26 @@ def retrieve_recipes(query: str, top_k: int = 5, min_score: float = 0.12) -> str
     if macro_col and macro_col in df.columns:
         top_rows = df.nlargest(top_k, macro_col)
     else:
-        scores   = cosine_similarity(vec.transform([query]), mat).flatten()
-        top_idx  = scores.argsort()[::-1][:top_k]
-        top_idx  = [i for i in top_idx if scores[i] >= min_score]
+        scores  = cosine_similarity(vec.transform([query]), mat).flatten()
+        top_idx = scores.argsort()[::-1][:top_k]
+        top_idx = [i for i in top_idx if scores[i] >= min_score]
+
+        # Exact / near-exact name match boost
+        # Fixes "Summer Sausage" → "Summer Pudding" TF-IDF failure
+        clean = _strip_query_prefix(query)
+        if 1 <= len(clean.split()) <= 7:
+            exact_row = _get_recipe_row(clean)
+            if exact_row is not None:
+                exact_nm = str(exact_row.get('name', '')).lower()
+                already_in = any(
+                    str(df.iloc[i].get('name', '')).lower() == exact_nm
+                    for i in top_idx
+                )
+                if not already_in:
+                    mask = df['name'].str.lower() == exact_nm
+                    if mask.any():
+                        top_idx = [int(df.index[mask][0])] + top_idx[:top_k - 1]
+
         if not top_idx:
             return ""
         top_rows = df.iloc[top_idx]
@@ -78,7 +112,12 @@ def retrieve_recipes(query: str, top_k: int = 5, min_score: float = 0.12) -> str
         ing  = str(r.get('ingredients', ''))
         line = f"- {name} | {cat} | {cals} kcal | {prot}g protein | {time} min | €{cost}"
         if ing and ing not in ('nan', ''):
-            line += f" | Ingredients: {ing}"
+            ing_names = _parse_ingredient_names(ing)
+            if ing_names:
+                ing_display = ', '.join(ing_names[:20])
+                if len(ing_names) > 20:
+                    ing_display += f', … (+{len(ing_names) - 20} more)'
+                line += f" | Ingredients (names only — quantities not stored): {ing_display}"
         lines.append(line)
     return '\n'.join(lines)
 
@@ -171,28 +210,71 @@ _ADD_BASKET_KWS = {"add", "basket", "buy", "purchase", "ingredients", "ingredien
 
 
 def _extract_recipe_name_from_history(messages_history: list) -> str:
-    """Scan recent messages for a mentioned recipe name."""
+    """Scan recent messages for a mentioned recipe name.
+
+    Strategy: database-driven lookup first (most reliable — not dependent on LLM output
+    format), then regex patterns as fallback.
+    """
     import re
-    for msg in reversed(messages_history):
+
+    recent = messages_history[-12:]  # only look at recent context
+
+    # ── Strategy 1: Database-driven — scan message content for known recipe names ──
+    # Check USER messages first (user explicitly names the recipe they want).
+    # Only fall back to ASSISTANT messages — assistant responses often list many recipes,
+    # so checking them last avoids returning the wrong one (longest match ≠ intended recipe).
+    try:
+        db, _, _ = _recipe_index()
+        if not db.empty and 'name' in db.columns:
+            # Sort longest-first so "Shepherd's Pie II" beats "Shepherd's Pie"
+            names_sorted = sorted(
+                [n for n in db['name'].dropna().tolist() if len(n) >= 4],
+                key=len, reverse=True,
+            )
+            # Pass 1: user messages only (most recent first)
+            for msg in reversed(recent):
+                if msg.get("role") != "user":
+                    continue
+                content_lower = msg.get("content", "").lower()
+                if not content_lower:
+                    continue
+                for name in names_sorted:
+                    if name.lower() in content_lower:
+                        return name
+            # Pass 2: assistant messages (fallback — last resort)
+            for msg in reversed(recent):
+                if msg.get("role") != "assistant":
+                    continue
+                content_lower = msg.get("content", "").lower()
+                if not content_lower:
+                    continue
+                for name in names_sorted:
+                    if name.lower() in content_lower:
+                        return name
+    except Exception:
+        pass
+
+    # ── Strategy 2: Regex fallback (legacy patterns) ──────────────────────────
+    for msg in reversed(recent):
         content = msg.get("content", "")
         role    = msg.get("role", "")
 
         if role == "assistant":
-            # Pattern 1: table rows like "- Name | ... | kcal | ..."
+            # table rows: "- Name | ... | kcal | ..."
             for line in content.split("\n"):
                 if "|" in line and "kcal" in line:
                     name = re.sub(r"^[-*\s]+", "", line).split("|")[0].strip()
                     if name:
                         return name
-            # Pattern 2: bold text **Recipe Name**
+            # bold **Recipe Name**
             bold = re.findall(r'\*\*([A-Z][^*]{4,60})\*\*', content)
             if bold:
                 return bold[0]
-            # Pattern 3: quoted recipe names
+            # quoted names
             match = re.search(r"['\"]([A-Z][^'\"]{4,60})['\"]", content)
             if match:
                 return match.group(1)
-            # Pattern 4: "ingredients for X are:" or "For the X recipe, the ingredients"
+            # "ingredients for X are:" / "For the X recipe, the ingredients"
             match = re.search(
                 r"(?:ingredients for|for the)\s+([A-Z][^\n.!?:]{4,60?})\s+(?:recipe\b|are\b)",
                 content, re.IGNORECASE,
@@ -201,7 +283,6 @@ def _extract_recipe_name_from_history(messages_history: list) -> str:
                 return match.group(1).strip()
 
         if role == "user":
-            # Pattern 5: user says "add [Recipe Name] ingredients" or refers to a recipe by name
             match = re.search(
                 r"(?:add|buy|make|cook)\s+(?:the\s+)?([A-Z][^\n.!?]{4,60?})"
                 r"(?:\s+to\s+basket|\s+ingredients|\s+recipe)?",
@@ -209,7 +290,6 @@ def _extract_recipe_name_from_history(messages_history: list) -> str:
             )
             if match:
                 candidate = match.group(1).strip()
-                # Only return if it looks like a recipe name (contains at least 2 words or starts uppercase)
                 if len(candidate.split()) >= 2:
                     return candidate
     return ""
@@ -218,7 +298,7 @@ def _extract_recipe_name_from_history(messages_history: list) -> str:
 def _merc_search_bilingual(ingredient: str, top_k: int = 2) -> str:
     """Search Mercadona for an ingredient with English→Spanish fallback."""
     from services.rag import search_products
-    from ingredient_translations import ENGLISH_TO_SPANISH
+    from core.ingredient_translations import ENGLISH_TO_SPANISH
     df = search_products(ingredient, top_k=top_k, min_score=0.1)
     if df.empty:
         spanish = ENGLISH_TO_SPANISH.get(ingredient.lower().strip())
@@ -229,11 +309,15 @@ def _merc_search_bilingual(ingredient: str, top_k: int = 2) -> str:
     lines = []
     for _, row in df.iterrows():
         price_str = f"€{row['price']:.2f}" if pd.notna(row.get("price")) else "price unknown"
-        lines.append(f"  - {row['name']} | {price_str}")
+        url = str(row.get("url", "")).strip()
+        line = f"  - {row['name']} | {price_str}"
+        if url:
+            line += f" | {url}"
+        lines.append(line)
     return "\n".join(lines)
 
 
-def build_context(question: str, messages_history: list = None) -> str:
+def build_context(question: str, messages_history: list = None, top_k: int = 6) -> str:
     """Retrieve relevant context from all sources and return a combined string."""
     from services.rag import retrieve as _merc_retrieve
     messages_history = messages_history or []
@@ -241,7 +325,7 @@ def build_context(question: str, messages_history: list = None) -> str:
     # Enrich vague follow-up queries with the last mentioned recipe name
     _VAGUE_FOLLOWUP_KWS = {"ingredient", "ingredients", "what", "tell me", "more about", "the recipe"}
     q_stripped = question.lower().strip().rstrip("?")
-    if len(question.split()) <= 6 and any(kw in q_stripped for kw in _VAGUE_FOLLOWUP_KWS):
+    if any(kw in q_stripped for kw in _VAGUE_FOLLOWUP_KWS):
         last_recipe = _extract_recipe_name_from_history(messages_history)
         if last_recipe:
             question = f"{question} {last_recipe}"
@@ -253,7 +337,11 @@ def build_context(question: str, messages_history: list = None) -> str:
     # → look up the recipe, find each ingredient, search Mercadona per ingredient
     is_add_basket = sum(1 for kw in _ADD_BASKET_KWS if kw in q) >= 2
     if is_add_basket:
-        recipe_name = _extract_recipe_name_from_history(messages_history)
+        # Scan the current question first — the user may have named the recipe explicitly
+        # (e.g. "add the ingredients for Bayrischer Leberkaese to my basket")
+        recipe_name = _extract_recipe_name_from_history([{"role": "user", "content": question}])
+        if not recipe_name:
+            recipe_name = _extract_recipe_name_from_history(messages_history)
         if recipe_name:
             row = _get_recipe_row(recipe_name)
             if row is not None:
@@ -266,7 +354,7 @@ def build_context(question: str, messages_history: list = None) -> str:
                         lines.append(f"\n  Ingredient: {ing}\n  Mercadona matches:\n{merc_match}")
                     parts.append(f"=== Recipe Ingredient → Mercadona Matches ===\n" + "\n".join(lines))
                     # Skip generic Mercadona search since we did per-ingredient above
-                    rec = retrieve_recipes(question, top_k=2)
+                    rec = retrieve_recipes(question, top_k=min(top_k, 3))
                     if rec:
                         count = rec.count('\n') + 1
                         parts.append(f"=== Recipes in Your Database ({count} matches found) ===\n{rec}")
@@ -278,13 +366,13 @@ def build_context(question: str, messages_history: list = None) -> str:
 
     # 1. Mercadona products — skip for pure recipe queries
     if not is_recipe_query or is_product_query:
-        merc = _merc_retrieve(question, top_k=5)
+        merc = _merc_retrieve(question, top_k=min(top_k, 5))
         if merc and merc != "No Mercadona product data available.":
             parts.append(f"=== Mercadona Products ===\n{merc}")
 
     # 2. Recipe database — skip for pure product queries
     if not is_product_query or is_recipe_query:
-        rec = retrieve_recipes(question, top_k=4)
+        rec = retrieve_recipes(question, top_k=top_k)
         if rec:
             count = rec.count('\n') + 1
             parts.append(f"=== Recipes in Your Database ({count} matches found) ===\n{rec}")

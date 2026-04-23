@@ -1,0 +1,18 @@
+{
+  "_note": "Bryan Johnson Blueprint supplement stack (public protocol, protocol.bryanjohnson.com). Values are daily targets.",
+  "_source": "https://protocol.bryanjohnson.com",
+  "supplements": [
+    { "name": "Vitamin D3",          "dose": "2000 IU",    "nutrient_key": "vitamin_d_iu",    "target": 2000, "rationale": "Most adults are deficient; supports immune function, bone density, mood." },
+    { "name": "Omega-3 (EPA+DHA)",   "dose": "1.5 g",      "nutrient_key": "omega3_g",        "target": 1.5,  "rationale": "Reduces systemic inflammation, supports cardiovascular and brain health." },
+    { "name": "Magnesium Glycinate", "dose": "500 mg",     "nutrient_key": "magnesium_mg",    "target": 500,  "rationale": "Involved in 300+ enzymatic reactions; improves sleep quality and stress response." },
+    { "name": "Vitamin K2 (MK-7)",   "dose": "600 mcg",    "nutrient_key": "vitamin_k_mcg",   "target": 600,  "rationale": "Directs calcium to bones rather than arteries; works synergistically with D3." },
+    { "name": "Vitamin B12 (Methyl)","dose": "1000 mcg",   "nutrient_key": "vitamin_b12_mcg", "target": 1.0,  "rationale": "Critical for neurological function; methylcobalamin form is best absorbed." },
+    { "name": "Zinc",                "dose": "15 mg",      "nutrient_key": "zinc_mg",         "target": 15,   "rationale": "Supports immune function, testosterone production, and wound healing." },
+    { "name": "Selenium",            "dose": "200 mcg",    "nutrient_key": "selenium_mcg",    "target": 200,  "rationale": "Antioxidant; thyroid function; may have anti-cancer properties." },
+    { "name": "Vitamin C",           "dose": "500 mg",     "nutrient_key": "vitamin_c_mg",    "target": 500,  "rationale": "Antioxidant; collagen synthesis; immune support." },
+    { "name": "Folate (5-MTHF)",     "dose": "400 mcg",    "nutrient_key": "folate_mcg",      "target": 400,  "rationale": "DNA synthesis and repair; cardiovascular health." },
+    { "name": "Creatine Monohydrate","dose": "5 g",        "nutrient_key": null,              "target": null, "rationale": "Most studied supplement for muscle strength, cognitive function, and cellular energy." },
+    { "name": "Lycopene",            "dose": "10 mg",      "nutrient_key": null,              "target": null, "rationale": "Antioxidant carotenoid; associated with reduced prostate cancer risk." },
+    { "name": "Calcium (if low diet)","dose": "200-500 mg","nutrient_key": "calcium_mg",      "target": 500,  "rationale": "Only supplement if dietary intake is insufficient — excess calcium can be harmful." }
+  ]
+}

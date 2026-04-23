@@ -1,0 +1,57 @@
+Ketogenic Diet — Principles, Macros, and Evidence
+
+The ketogenic (keto) diet is a very low-carbohydrate, high-fat diet that shifts the body's primary fuel source from glucose to ketone bodies. Ketosis is typically achieved within 2-4 days of carbohydrate restriction.
+
+Macronutrient targets:
+- Fat: 70-80% of total calories
+- Protein: 15-25% of total calories (do not exceed — excess protein is gluconeogenic)
+- Carbohydrates: 5-10% of total calories — typically 20-50g net carbs per day
+- Net carbs = total carbs minus dietary fibre
+
+Mechanism:
+When carbohydrate intake drops below approximately 50g/day, liver glycogen depletes within 24-48 hours. The liver then converts fatty acids into ketone bodies (beta-hydroxybutyrate, acetoacetate, acetone), which become the primary energy source for the brain and muscles.
+
+Blood ketone levels:
+- Nutritional ketosis: 0.5-3.0 mmol/L beta-hydroxybutyrate
+- Deep ketosis: 3.0-5.0 mmol/L (often used for epilepsy management)
+- Diabetic ketoacidosis: >10 mmol/L (dangerous, associated with type 1 diabetes)
+
+Foods to eat on keto:
+- Meat and fish: beef, chicken, pork, salmon, sardines, tuna — all unprocessed, unsauced
+- Eggs: 2-4 per day is typical, excellent fat and protein ratio
+- High-fat dairy: butter, heavy cream, hard cheeses, Greek yogurt (in small amounts)
+- Low-carb vegetables: leafy greens, broccoli, cauliflower, zucchini, bell peppers, asparagus, mushrooms
+- Avocado: excellent fat source, ~1-2 per day
+- Nuts and seeds: macadamia, walnuts, almonds, chia, flax (in moderation — count carbs)
+- Oils: olive oil, coconut oil, avocado oil, MCT oil
+
+Foods to strictly avoid:
+- Grains: bread, pasta, rice, oats, corn
+- Sugar: all forms including honey, maple syrup, fruit juice
+- High-sugar fruit: bananas, grapes, mangoes, apples (small berries are acceptable)
+- Legumes: beans, lentils, chickpeas (too many carbs)
+- Root vegetables: potatoes, sweet potatoes, carrots in large amounts
+- Alcohol: most alcoholic beverages contain carbs; dry wine and spirits are lower-carb options
+
+Sample daily meal plan (2000 kcal keto):
+Breakfast: 3 scrambled eggs cooked in butter, 2 rashers bacon, half avocado (total ~600 kcal)
+Lunch: Large salad with grilled chicken, olive oil dressing, walnuts, cucumber, feta (total ~500 kcal)
+Dinner: Salmon fillet with roasted broccoli and cauliflower in olive oil (total ~600 kcal)
+Snacks: Almonds, hard-boiled egg, cheese (total ~300 kcal)
+Net carbs for the day: approximately 20-25g
+
+Keto flu (first 1-2 weeks):
+Common symptoms: fatigue, headache, brain fog, irritability, muscle cramps. Caused by electrolyte loss (sodium, potassium, magnesium) due to reduced insulin and glycogen depletion.
+Management: increase sodium (1-2g extra/day from broth or salt), potassium (avocado, leafy greens), magnesium (nuts, seeds, or supplement 300-400mg glycinate).
+
+Evidence for ketogenic diet:
+- Strong evidence: epilepsy management (50%+ seizure reduction), short-term weight loss
+- Moderate evidence: type 2 diabetes remission, PCOS symptom improvement
+- Emerging evidence: certain cancers (glioblastoma), Alzheimer's prevention
+- Mixed evidence: long-term cardiovascular effects, athletic performance
+
+Protein on keto:
+Target 1.2-1.7g per kg of body weight to preserve lean mass. For a 75kg person: 90-128g protein/day. This typically represents 18-25% of calories on a well-formulated keto diet.
+
+Keto for weight loss:
+Average weight loss in the first week is 1-3 kg (largely water from glycogen depletion). Long-term studies show keto is comparable to low-fat diets for weight loss at 12 months, but may give faster initial results and better adherence for some individuals.

@@ -50,34 +50,16 @@ def render_sidebar(_df_recipes):
             from services.rag import DEFAULT_MODELS
             provider = st.selectbox(
                 "LLM Provider",
-                ["OpenRouter", "Gemini", "OpenAI", "Groq", "Anthropic", "Mistral", "Cohere", "Ollama"],
+                ["Cohere", "Ollama"],
                 key="rag_provider_select",
             )
             if provider == "Ollama":
                 api_key_input = "ollama"
                 st.info("Ollama runs locally — no key needed.")
-            elif provider == "OpenRouter":
-                st.info("Free models available — get a key at [openrouter.ai](https://openrouter.ai). Default model: `meta-llama/llama-3.3-70b-instruct:free`")
-                api_key_input = st.text_input(
-                    "API Key", type="password",
-                    placeholder="sk-or-v1-...",
-                    key="rag_api_key_input",
-                )
-            elif provider == "Gemini":
-                st.info("Free tier available — get a key at [aistudio.google.com](https://aistudio.google.com).")
-                api_key_input = st.text_input(
-                    "API Key", type="password",
-                    placeholder="AIza...",
-                    key="rag_api_key_input",
-                )
             else:
-                _ph = {
-                    "OpenAI": "sk-...", "Groq": "gsk_...", "Anthropic": "sk-ant-...",
-                    "Mistral": "your Mistral key", "Cohere": "your Cohere key",
-                }
                 api_key_input = st.text_input(
                     "API Key", type="password",
-                    placeholder=_ph.get(provider, "your key"),
+                    placeholder="your Cohere key",
                     key="rag_api_key_input",
                 )
             model_input = st.text_input(
@@ -98,38 +80,6 @@ def render_sidebar(_df_recipes):
         if not st.session_state.rag_unlocked:
             st.info("Enter a valid API key above to start chatting.")
             return
-
-        shopping_list = st.session_state.get("shopping_list")
-        if shopping_list is not None and not shopping_list.empty:
-            if st.button("🛒 Check my shopping list", key="rag_check_list_btn"):
-                items = shopping_list["Ingredient"].dropna().tolist()
-                question = f"Do you carry these products? Check each and give price: {', '.join(items)}"
-                st.session_state.rag_messages.append({"role": "user", "content": question})
-                _basket = st.session_state.get('basket', [])
-                _basket_ctx = ""
-                if _basket:
-                    _names = [it.get('Ingredient', '') for it in _basket[:8] if it.get('Ingredient')]
-                    _basket_total = sum(float(it.get('Total Price', 0) or 0) for it in _basket)
-                    _basket_ctx = (
-                        f"\n\n[User's current basket — {len(_basket)} items, €{_basket_total:.2f} total: "
-                        + ", ".join(_names)
-                        + (f"... and {len(_basket) - 8} more" if len(_basket) > 8 else "")
-                        + "]"
-                    )
-                with st.spinner("Checking..."):
-                    reply = rag_answer(
-                        question=question + _basket_ctx,
-                        messages_history=st.session_state.rag_messages[:-1],
-                        api_key=st.session_state.rag_api_key,
-                        provider=st.session_state.rag_provider,
-                        model=st.session_state.get("rag_model"),
-                    )
-                clean_text, basket_items = parse_basket_intent(reply)
-                msg = {"role": "assistant", "content": clean_text}
-                if basket_items:
-                    msg["basket_items"] = basket_items
-                st.session_state.rag_messages.append(msg)
-                st.rerun()
 
         # Chat history in a scrollable container
         with st.container(height=400):
@@ -330,12 +280,11 @@ def _generate_shopping_list(df_recipes, people_count):
         for q_val, ing_name in item_list:
             if not ing_name:
                 continue
-            for _ in range(people_n):
-                all_items.append({
-                    'Quantity':   q_val,
-                    'Ingredient': ing_name,
-                    'RefKey':     ing_name.lower().strip(),
-                })
+            all_items.append({
+                'Quantity':   q_val,
+                'Ingredient': ing_name,
+                'RefKey':     ing_name.lower().strip(),
+            })
 
     df_shop = pd.DataFrame(all_items)
 
@@ -352,7 +301,7 @@ def _generate_shopping_list(df_recipes, people_count):
 
     # Look up best Mercadona match for every ingredient via TF-IDF
     try:
-        from ingredient_translations import ENGLISH_TO_SPANISH as _E2S
+        from core.ingredient_translations import ENGLISH_TO_SPANISH as _E2S
     except ImportError:
         _E2S = {}
 
@@ -457,13 +406,13 @@ def _generate_shopping_list(df_recipes, people_count):
 
     st.session_state.shopping_list = grouped
 
-    # AI refinement: Groq improves unit/qty/pack-size calculations on top of TF-IDF prices
+    # AI pipeline: consolidate duplicates → normalise units → match SKU → compute packs
     g_client = st.session_state.get('groq_client')
     final_display = pd.DataFrame()
 
     if g_client:
-        with st.spinner("AI is refining quantities and pack sizes..."):
-            optimized = optimize_shopping_list_groq(grouped, g_client)
+        with st.spinner("AI is consolidating ingredients, normalising units and calculating packs…"):
+            optimized = optimize_shopping_list_groq(all_items, g_client, people_count=people_count)
             if not optimized.empty:
                 final_display = optimized
 
@@ -472,6 +421,7 @@ def _generate_shopping_list(df_recipes, people_count):
 
     st.session_state.shopping_list_display = final_display
     st.session_state.validation_step = 2
+    st.session_state['shopping_list_added_to_basket'] = False  # reset button state
 
 
 def _find_comparable_recipes(target_row, df, n=20):
@@ -780,22 +730,26 @@ def _display_shopping_list():
     existing_skus = disp['SKU'].dropna().unique().tolist()
     all_sku_options = list(dict.fromkeys(existing_skus + sku_options))  # preserve order, dedupe
 
-    # Column order: Ingredient | Qty Needed | SKU | Unit Price | Count | Total Price | Link | Remove
-    show_cols = ['Ingredient', 'Qty Needed', 'SKU', 'Unit Price', 'Count', 'Total Price', 'Link', 'Remove']
+    # Column order: Ingredient | Qty Needed | Pack Size | SKU | Unit Price | Count | Total Price | Link | Remove
+    show_cols = ['Ingredient', 'Qty Needed', 'Pack Size', 'SKU', 'Unit Price', 'Count', 'Total Price', 'Link', 'Remove']
     show_cols = [c for c in show_cols if c in disp.columns]
 
     col_config = {
         "Ingredient":  st.column_config.TextColumn("Ingredient", disabled=True, width="medium"),
-        "Qty Needed":  st.column_config.TextColumn("Qty Needed", disabled=True),
+        "Qty Needed":  st.column_config.TextColumn("Total Needed", disabled=True,
+                           help="Total normalised quantity across all recipes"),
+        "Pack Size":   st.column_config.TextColumn("Pack Size", disabled=True,
+                           help="Size of one Mercadona pack"),
         "SKU":         st.column_config.SelectboxColumn(
                            "Product (SKU)",
                            options=all_sku_options,
                            width="large",
                            help="Click to pick a different Mercadona product. Price and link update automatically.",
                        ),
-        "Unit Price":  st.column_config.NumberColumn("Unit Price", format="€%.2f", disabled=True),
-        "Count":       st.column_config.NumberColumn("Count", disabled=True),
-        "Total Price": st.column_config.NumberColumn("Total Price", format="€%.2f", disabled=True),
+        "Unit Price":  st.column_config.NumberColumn("Price/Pack", format="€%.2f", disabled=True),
+        "Count":       st.column_config.NumberColumn("Packs", min_value=1, step=1,
+                           help="Number of packs to buy — edit to override"),
+        "Total Price": st.column_config.NumberColumn("Total €", format="€%.2f", disabled=True),
         "Link":        st.column_config.LinkColumn("Buy Link", display_text="Open Link"),
         "Remove":      st.column_config.CheckboxColumn("Remove 🗑️"),
     }
@@ -808,31 +762,49 @@ def _display_shopping_list():
         key="shopping_list_editor",
     )
 
-    # Detect SKU changes and update price / link / total automatically
-    sku_changed = False
+    # Detect SKU or Count changes and update price / link / total automatically
+    needs_rerun = False
     for i, (idx, row) in enumerate(edited_df.iterrows()):
-        new_sku = str(row.get('SKU', '') or '')
-        if new_sku and new_sku in sku_lookup:
-            orig_sku = str(disp.iloc[i].get('SKU', '') if i < len(disp) else '')
-            if new_sku != orig_sku:
-                prod = sku_lookup[new_sku]
-                count = float(row.get('Count', 1) or 1)
-                st.session_state.shopping_list_display.at[idx, 'SKU']         = new_sku
-                st.session_state.shopping_list_display.at[idx, 'Unit Price']  = prod['price']
-                st.session_state.shopping_list_display.at[idx, 'Link']        = prod['url']
-                st.session_state.shopping_list_display.at[idx, 'Total Price'] = prod['price'] * count
-                sku_changed = True
-    if sku_changed:
+        new_sku   = str(row.get('SKU', '') or '')
+        new_count = float(row.get('Count', 1) or 1)
+        orig_row  = disp.iloc[i] if i < len(disp) else {}
+        orig_sku  = str(orig_row.get('SKU', '') if hasattr(orig_row, 'get') else '')
+        orig_count = float(orig_row.get('Count', 1) if hasattr(orig_row, 'get') else 1)
+
+        if new_sku and new_sku in sku_lookup and new_sku != orig_sku:
+            prod = sku_lookup[new_sku]
+            st.session_state.shopping_list_display.at[idx, 'SKU']         = new_sku
+            st.session_state.shopping_list_display.at[idx, 'Unit Price']  = prod['price']
+            st.session_state.shopping_list_display.at[idx, 'Link']        = prod['url']
+            st.session_state.shopping_list_display.at[idx, 'Total Price'] = prod['price'] * new_count
+            needs_rerun = True
+        elif new_count != orig_count:
+            unit_price = float(orig_row.get('Unit Price', 0) if hasattr(orig_row, 'get') else 0)
+            st.session_state.shopping_list_display.at[idx, 'Count']       = new_count
+            st.session_state.shopping_list_display.at[idx, 'Total Price'] = unit_price * new_count
+            needs_rerun = True
+
+    # Handle row removal
+    if 'Remove' in edited_df.columns and edited_df['Remove'].any():
+        keep_mask = ~edited_df['Remove']
+        st.session_state.shopping_list_display = st.session_state.shopping_list_display[keep_mask.values].reset_index(drop=True)
+        needs_rerun = True
+
+    if needs_rerun:
         st.rerun()
 
     purchase_list = edited_df[~edited_df['Remove']].copy() if 'Remove' in edited_df.columns else edited_df.copy()
 
-    if st.button("🛒 Add to Basket", type="primary", key="add_to_basket_btn"):
+    already_added = st.session_state.get('shopping_list_added_to_basket', False)
+    if already_added:
+        st.button("✅ Added to Basket", disabled=True, key="add_to_basket_btn")
+    elif st.button("🛒 Add to Basket", type="primary", key="add_to_basket_btn"):
         if not purchase_list.empty:
             rows_to_add = purchase_list.copy()
             rows_to_add['source'] = 'Meal Plan'
             st.session_state.basket.extend(rows_to_add.to_dict('records'))
-            st.success(f"Added {len(rows_to_add)} items to basket! Switch to the 🛒 Basket tab.")
+            st.session_state['shopping_list_added_to_basket'] = True
+            st.rerun()
         else:
             st.warning("All items removed or list empty.")
 
@@ -1029,15 +1001,15 @@ def render_tab_history():
 # ── Tab 3: Recipe Forum ───────────────────────────────────────────────────────
 
 _KW_MAP = {
-    "Main Dish":    "main dinner lunch entree casserole stew chicken beef pork pasta",
-    "Breakfast":    "breakfast brunch egg oatmeal cereal granola toast waffle pancake",
-    "Lunch/Snacks": "lunch snack appetizer bites salad sandwich wrap",
-    "Dessert":      "dessert cake cookie sweet pie",
-    "Salad":        "salad lunch main dinner",
-    "Soup":         "soup stew chili lunch dinner main",
-    "Pasta":        "pasta dinner lunch main",
-    "Vegetable":    "vegetable dinner lunch main salad",
-    "Other":        "main dinner lunch",
+    "Main Dish":    "main dinner lunch entree casserole stew chicken beef pork pasta user input",
+    "Breakfast":    "breakfast brunch egg oatmeal cereal granola toast waffle pancake user input",
+    "Lunch/Snacks": "lunch snack appetizer bites salad sandwich wrap user input",
+    "Dessert":      "dessert cake cookie sweet pie user input",
+    "Salad":        "salad lunch main dinner user input",
+    "Soup":         "soup stew chili lunch dinner main user input",
+    "Pasta":        "pasta dinner lunch main user input",
+    "Vegetable":    "vegetable dinner lunch main salad user input",
+    "Other":        "main dinner lunch user input",
 }
 _RF_CATS = list(_KW_MAP.keys())
 
@@ -1283,28 +1255,17 @@ def render_tab_rag():
         from services.rag import DEFAULT_MODELS
         provider = st.selectbox(
             "LLM Provider",
-            ["OpenRouter", "OpenAI", "Groq", "Anthropic", "Mistral", "Cohere", "Ollama"],
+            ["Cohere", "Ollama"],
             key="rag_provider_select",
         )
 
         if provider == "Ollama":
             api_key_input = "ollama"
             st.info("Ollama runs locally — no API key needed. Make sure Ollama is running at `http://localhost:11434`.")
-        elif provider == "OpenRouter":
-            st.info("Free models available — get a key at [openrouter.ai](https://openrouter.ai). Default model: `meta-llama/llama-3.3-70b-instruct:free`")
-            api_key_input = st.text_input("API Key", type="password", placeholder="sk-or-v1-...", key="rag_api_key_input2")
         else:
-            _placeholders = {
-                "OpenAI":    "sk-...",
-                "Groq":      "gsk_...",
-                "Anthropic": "sk-ant-...",
-                "Mistral":   "your Mistral API key",
-                "Cohere":    "your Cohere API key",
-            }
             api_key_input = st.text_input(
-                "API Key",
-                type="password",
-                placeholder=_placeholders.get(provider, "your API key"),
+                "API Key", type="password",
+                placeholder="your Cohere API key",
                 key="rag_api_key_input",
             )
 
@@ -1327,23 +1288,6 @@ def render_tab_rag():
     if not st.session_state.rag_unlocked:
         st.info("Enter a valid API key above to start chatting.")
         return
-
-    shopping_list = st.session_state.get("shopping_list")
-    if shopping_list is not None and not shopping_list.empty:
-        if st.button("🛒 Check my shopping list availability", key="rag_check_list_btn"):
-            items = shopping_list["Ingredient"].dropna().tolist()
-            question = f"Do you carry these products? Check each one and give availability and price: {', '.join(items)}"
-            st.session_state.rag_messages.append({"role": "user", "content": question})
-            with st.spinner("Checking availability for all items..."):
-                reply = rag_answer(
-                    question=question,
-                    messages_history=st.session_state.rag_messages[:-1],
-                    api_key=st.session_state.rag_api_key,
-                    provider=st.session_state.rag_provider,
-                    model=st.session_state.get("rag_model"),
-                )
-            st.session_state.rag_messages.append({"role": "assistant", "content": reply})
-            st.rerun()
 
     for msg in st.session_state.rag_messages:
         with st.chat_message(msg["role"]):
@@ -1470,16 +1414,21 @@ def render_tab_basket():
         results_df = st.session_state.get('basket_search_results')
         if results_df is not None and not results_df.empty:
             st.caption("Pick a product to add:")
+            basket_names = {it.get('Ingredient', '') for it in st.session_state.basket}
             for r_i, prod_row in results_df.iterrows():
                 rc1, rc2, rc3, rc4 = st.columns([3, 1, 1, 1])
-                price_val = float(prod_row.get('price', 0) or 0)
-                rc1.write(f"**{prod_row.get('name', '')}**")
+                price_val  = float(prod_row.get('price', 0) or 0)
+                prod_name  = prod_row.get('name', '')
+                already_in = prod_name in basket_names
+                rc1.write(f"**{prod_name}**")
                 rc2.write(f"€{price_val:.2f}/{prod_row.get('unit', '')}")
                 qty = rc3.text_input("Qty", value="1", key=f"basket_qty_{r_i}", label_visibility="collapsed")
-                if rc4.button("Add", key=f"basket_add_{r_i}"):
+                if already_in:
+                    rc4.button("✓ Added", key=f"basket_add_{r_i}", disabled=True)
+                elif rc4.button("Add", key=f"basket_add_{r_i}"):
                     st.session_state.basket.append({
                         'source':      'Manual',
-                        'Ingredient':  prod_row.get('name', ''),
+                        'Ingredient':  prod_name,
                         'Qty Needed':  qty,
                         'Unit Price':  price_val,
                         'Count':       1,
@@ -1539,7 +1488,7 @@ def render_tab_basket():
                     if c in basket_df.columns]
 
     try:
-        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
         gb = GridOptionsBuilder.from_dataframe(basket_df[display_cols])
         gb.configure_default_column(editable=True, resizable=True)
@@ -1554,8 +1503,20 @@ def render_tab_basket():
                             type=["numericColumn"],
                             valueFormatter="'€' + Number(value).toFixed(2)")
         gb.configure_column("Link", headerName="Link", editable=False, width=70,
-                            cellRenderer="function(p){return p.value"
-                                         "?'<a href=\"'+p.value+'\" target=\"_blank\">Open</a>':''}")
+                            cellRenderer=JsCode("""
+(function() {
+  function LinkRenderer() {}
+  LinkRenderer.prototype.init = function(p) {
+    this.eGui = document.createElement('div');
+    if (p.value) {
+      this.eGui.innerHTML = '<a href="' + p.value + '" target="_blank" '
+        + 'style="color:#00904A;font-weight:600;text-decoration:none">Open</a>';
+    }
+  };
+  LinkRenderer.prototype.getGui = function() { return this.eGui; };
+  return LinkRenderer;
+})()
+"""))
         gb.configure_selection("multiple", use_checkbox=True, header_checkbox=True)
         gb.configure_grid_options(rowDragManaged=True, animateRows=True)
 
