@@ -6,7 +6,7 @@ Architecture
   OFFLINE (ingest, every 6h):
     Articles (up to 60) ──► Filter Agent (relevance + novelty ≥ 0.4) ──► filtered set
     filtered set ──► CAG preprocessing (Groq) ──► KV cache JSON
-    filtered set ──► HuggingFace embeddings ──► Qdrant
+    filtered set ──► Cohere embeddings ──► Qdrant
     filtered set ──► Trend Detection (Groq) ──► trends cache JSON
 
   QUERY TIME:
@@ -63,8 +63,18 @@ def _get_client():
 
 
 def _get_embed_model():
-    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-    return HuggingFaceEmbedding(model_name=_EMBED_MODEL)
+    from llama_index.embeddings.cohere import CohereEmbedding
+    cohere_key = os.environ.get("COHERE_API_KEY", "").strip()
+    if not cohere_key:
+        raise RuntimeError(
+            "COHERE_API_KEY environment variable is not set. "
+            "Add it in your Render dashboard (or .env locally)."
+        )
+    return CohereEmbedding(
+        cohere_api_key=cohere_key,
+        model_name="embed-english-light-v3.0",
+        input_type="search_document",
+    )
 
 
 def _collection_has_points() -> bool:

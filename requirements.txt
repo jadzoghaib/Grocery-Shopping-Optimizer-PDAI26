@@ -6,7 +6,6 @@ numpy
 plotly
 pulp
 groq
-litai
 requests
 scikit-learn
 ddgs
@@ -22,10 +21,7 @@ a2wsgi
 qdrant-client
 llama-index-core
 llama-index-llms-groq
-llama-index-embeddings-huggingface
-sentence-transformers
+cohere
+llama-index-embeddings-cohere
 llama-index-vector-stores-qdrant
 apscheduler
-# ── RAG evaluation ────────────────────────────────────────────────────────────
-ragas
-datasets
