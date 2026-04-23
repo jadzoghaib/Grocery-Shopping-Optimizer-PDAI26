@@ -158,6 +158,7 @@ def import_from_url(url: str, groq_client=None) -> dict:
     if ld:
         result = _recipe_from_jsonld(ld)
         if result.get("name") and result.get("ingredients"):
+            result["source_url"] = url
             return result
 
     # 2. LLM fallback
@@ -165,7 +166,9 @@ def import_from_url(url: str, groq_client=None) -> dict:
         raise ValueError("Could not extract recipe from structured data and no LLM client available.")
 
     text = soup.get_text(separator="\n", strip=True)
-    return _call_llm(text, groq_client)
+    result = _call_llm(text, groq_client)
+    result["source_url"] = url
+    return result
 
 
 # ── YouTube import ────────────────────────────────────────────────────────────
@@ -195,4 +198,5 @@ def import_from_youtube(url: str, groq_client) -> dict:
     text = " ".join(t.text for t in transcript)
 
     result = _call_llm(text, groq_client)
+    result["source_url"] = url
     return result
