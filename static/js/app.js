@@ -780,9 +780,15 @@ function renderPlannerShop(el) {
               <td>${item['Qty Needed'] || ''}</td>
               <td>${skuCell}</td>
               <td>${item['Pack Size'] || ''}</td>
-              <td>${item.Count || 1}</td>
+              <td>
+                <div class="qty-adjuster">
+                  <button class="qty-btn" onclick="adjustShopCount(${i},-1)" title="Decrease">−</button>
+                  <span class="qty-val" id="shop-count-${i}">${item.Count || 1}</span>
+                  <button class="qty-btn" onclick="adjustShopCount(${i},1)" title="Increase">+</button>
+                </div>
+              </td>
               <td>&euro;${(parseFloat(item['Unit Price']) || 0).toFixed(2)}</td>
-              <td><strong>&euro;${(parseFloat(item['Total Price']) || 0).toFixed(2)}</strong></td>
+              <td><strong id="shop-total-${i}">&euro;${(parseFloat(item['Total Price']) || 0).toFixed(2)}</strong></td>
               <td style="white-space:nowrap">
                 <button class="btn-shop-action btn-shop-add" title="Add to basket" onclick='addShopItemToBasket(${i})'><i class="fa-solid fa-basket-shopping"></i> Add</button>
                 <button class="btn-shop-action btn-shop-remove" title="Remove from list" onclick='removeShopItem(${i})'><i class="fa-solid fa-xmark"></i> Remove</button>
@@ -876,6 +882,25 @@ function removeShopItem(idx) {
   save('shoppingList');
   renderPlannerShop(document.getElementById('content'));
   toast('Item removed from list', 'success');
+}
+
+function adjustShopCount(idx, delta) {
+  const item = S.shoppingList[idx];
+  if (!item) return;
+  const newCount = Math.max(1, (parseInt(item.Count) || 1) + delta);
+  item.Count = newCount;
+  const unitPrice = parseFloat(item['Unit Price']) || 0;
+  item['Total Price'] = parseFloat((newCount * unitPrice).toFixed(2));
+  // Update cells in-place — no full re-render needed.
+  const countEl = document.getElementById(`shop-count-${idx}`);
+  const totalEl = document.getElementById(`shop-total-${idx}`);
+  if (countEl) countEl.textContent = newCount;
+  if (totalEl) totalEl.innerHTML = `&euro;${item['Total Price'].toFixed(2)}`;
+  // Refresh the estimated total at the bottom.
+  const grandTotal = S.shoppingList.reduce((s, it) => s + (parseFloat(it['Total Price']) || 0), 0);
+  const totalEl2 = document.querySelector('.basket-total');
+  if (totalEl2) totalEl2.textContent = `\u20ac${grandTotal.toFixed(2)}`;
+  save('shoppingList');
 }
 
 // Cache for alternatives per item index (cleared on re-render)
