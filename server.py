@@ -63,16 +63,31 @@ async def _startup():
     if not os.environ.get("DISABLE_NEWS_SCHEDULER"):
         start_scheduler()   # begins 60-second-delayed first ingest (RAG + CAG), then every 6 h
 
-    # Pre-warm the recipe/Mercadona cache in a background thread so the first
-    # meal-plan request is instant (instead of waiting for a cold Mercadona crawl).
+    # Pre-warm caches in background threads so the first request is instant.
     import threading
-    def _prewarm():
+
+    def _prewarm_recipes():
         try:
             from core.data import load_recipe_data
             load_recipe_data()
         except Exception:
             pass
-    threading.Thread(target=_prewarm, daemon=True).start()
+
+    def _prewarm_tfidf():
+        """Load the TF-IDF index into memory at startup.
+
+        Without this, the first shopping-list request pays a cold-load penalty
+        (~1–2 s) while sklearn builds the in-memory matrix from disk.
+        """
+        try:
+            from core.shopping import _get_tfidf_index
+            _get_tfidf_index()
+            print("[server] TF-IDF index pre-warmed")
+        except Exception as e:
+            print(f"[server] TF-IDF pre-warm skipped: {e}")
+
+    threading.Thread(target=_prewarm_recipes, daemon=True).start()
+    threading.Thread(target=_prewarm_tfidf, daemon=True).start()
 
 
 @app.on_event("shutdown")

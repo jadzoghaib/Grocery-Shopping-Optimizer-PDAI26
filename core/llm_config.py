@@ -8,13 +8,20 @@ hashes are computed from `model + prompt`.
 
 import os
 
-# ── Shopping pipeline (Pass 1 consolidation + Pass 3 SKU selection) ──────────
+# ── Shopping pipeline ─────────────────────────────────────────────────────────
+# Pass 1 (consolidation) only does unit-conversion arithmetic and ingredient
+# name normalisation — a fast 8b model is more than capable and ~8× quicker.
+PASS1_MODEL: str = "llama-3.1-8b-instant"
+
+# Pass 3 (SKU selection) needs product-matching intelligence: keep the 70b model.
 SHOPPING_MODEL: str = "llama-3.3-70b-versatile"
+
 SHOPPING_TEMPERATURE: float = 0.0
 SHOPPING_SEED: int = 42
 
-# Timeouts (seconds) — preserved from the original implementation.
-PASS1_TIMEOUT: int = 40
+# Timeouts (seconds).
+# Pass 1 uses a fast model → tighter timeout.
+PASS1_TIMEOUT: int = 15
 PASS3_TIMEOUT: int = 20
 
 # ── Match-quality thresholds (used by core/shopping_guards.py) ───────────────

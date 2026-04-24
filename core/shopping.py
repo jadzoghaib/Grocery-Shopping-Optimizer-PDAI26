@@ -49,6 +49,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from core.llm_config import (
+    PASS1_MODEL,
     PASS1_TIMEOUT,
     PASS3_TIMEOUT,
     SHOPPING_MODEL,
@@ -472,15 +473,20 @@ def _build_pass3_prompt(batch: list[dict], people_count: int, feedback: dict | N
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _llm_call(
-    client, prompt: str, pass_name: str, timeout: int, metadata: dict | None = None
+    client, prompt: str, pass_name: str, timeout: int,
+    metadata: dict | None = None, model: str | None = None,
 ) -> tuple[str | None, bool]:
     """Run one Groq call, transparently hitting the local cache on repeat
     prompts. Returns ``(response_text, ok)``.
 
+    ``model`` overrides ``SHOPPING_MODEL`` — Pass 1 passes ``PASS1_MODEL``
+    (a fast 8b model) while Pass 3 keeps the default 70b model.
+
     On any exception the call is logged with ok=False and ``None`` is
     returned so the caller can invoke the deterministic fallback.
     """
-    with LLMLogger(SHOPPING_MODEL, prompt, pass_name, metadata=metadata) as log:
+    resolved_model = model or SHOPPING_MODEL
+    with LLMLogger(resolved_model, prompt, pass_name, metadata=metadata) as log:
         cached = read_cache(log.prompt_hash)
         if cached and cached.get("response"):
             log.record_response(cached["response"], ok=True)
@@ -491,7 +497,7 @@ def _llm_call(
                     {"role": "system", "content": "Return ONLY valid JSON, no markdown fences."},
                     {"role": "user", "content": prompt},
                 ],
-                model=SHOPPING_MODEL,
+                model=resolved_model,
                 temperature=SHOPPING_TEMPERATURE,
                 seed=SHOPPING_SEED,
                 response_format={"type": "json_object"},
@@ -524,8 +530,10 @@ def _run_pass1(all_items: list, groq_client) -> tuple[list[dict], str]:
             raw_lines.append(f"- {(qty + ' ') if qty else ''}{name}")
 
     prompt = _build_pass1_prompt(raw_lines)
-    text, ok = _llm_call(groq_client, prompt, pass_name="pass1", timeout=PASS1_TIMEOUT,
-                         metadata={"raw_lines": len(raw_lines)})
+    text, ok = _llm_call(
+        groq_client, prompt, pass_name="pass1", timeout=PASS1_TIMEOUT,
+        metadata={"raw_lines": len(raw_lines)}, model=PASS1_MODEL,
+    )
 
     if not ok or not text:
         print("[shopping] Pass 1 LLM call failed -> rule-based consolidation")
@@ -715,7 +723,7 @@ def _run_pass3(
 
     Results are reassembled in the original ``cand_ctx`` order.
     """
-    batch_size = 5
+    batch_size = 8  # larger batches → fewer API round-trips (was 5)
     # Tag each item with its position so we can restore order after parallel execution.
     for i, item in enumerate(cand_ctx):
         item["_orig_idx"] = i
@@ -737,7 +745,7 @@ def _run_pass3(
     # ── Parallel LLM batches ──────────────────────────────────────────────────
     batches = [llm_items[i:i + batch_size] for i in range(0, len(llm_items), batch_size)]
     if batches:
-        with ThreadPoolExecutor(max_workers=min(4, len(batches))) as pool:
+        with ThreadPoolExecutor(max_workers=min(6, len(batches))) as pool:
             future_to_batch = {
                 pool.submit(_process_pass3_batch, batch, groq_client, people_count, feedback): batch
                 for batch in batches
@@ -815,7 +823,7 @@ def pass2_node(state: ShoppingState) -> ShoppingState:
         total = ing.get("total", 0)
         unit = ing.get("unit", "")
         # Skip items with zero or negligible quantity — they shouldn't appear in the basket.
-        if total == 0 or (isinstance(total, float) and total < 0.01):
+        if (total or 0) < 0.01:
             continue
         hits, top_score = _search_bilingual_scored(name, top_k=5)
         cand_ctx.append({
@@ -823,7 +831,9 @@ def pass2_node(state: ShoppingState) -> ShoppingState:
             "total": total,
             "unit": unit,
             "candidates": _format_candidates(hits),
-            "candidates_df": hits if not hits.empty else pd.DataFrame(columns=["name", "price", "unit", "url", "_score"]),
+            "candidates_df": hits if not hits.empty else pd.DataFrame(
+                columns=["name", "price", "unit", "url", "_score"]
+            ),
             "top_score": top_score,
             # ``ingredient`` mirrors the top-level keys; _run_pass3 expects it
             # as a sub-dict for the fallback path.
