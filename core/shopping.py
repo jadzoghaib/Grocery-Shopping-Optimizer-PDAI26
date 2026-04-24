@@ -55,6 +55,7 @@ from core.llm_config import (
     SHOPPING_SEED,
     SHOPPING_TEMPERATURE,
 )
+from core.shopping_caps import get_pack_cap
 from core.shopping_fallback import rule_based_consolidate, rule_based_select
 from core.shopping_guards import (
     check_coverage,
@@ -574,7 +575,8 @@ def _format_candidates(hits: pd.DataFrame) -> str:
 
 def _row_from_selected(sp: SelectedProduct) -> dict:
     """Convert a validated SelectedProduct into the shopping-list DataFrame row shape."""
-    packs = min(10, int(math.ceil(float(sp.packs_needed or 1))))
+    cap = get_pack_cap(sp.ingredient)
+    packs = min(cap, int(math.ceil(float(sp.packs_needed or 1))))
     return {
         "Ingredient": sp.ingredient,
         "Qty Needed": sp.total_needed,
@@ -590,12 +592,13 @@ def _row_from_selected(sp: SelectedProduct) -> dict:
 
 
 def _row_from_fallback(fb: dict) -> dict:
+    cap = get_pack_cap(fb.get("ingredient", ""))
     return {
         "Ingredient": fb.get("ingredient", ""),
         "Qty Needed": fb.get("total_needed", ""),
         "SKU": fb.get("product_name", ""),
         "Pack Size": fb.get("pack_size", ""),
-        "Count": min(10, int(fb.get("packs_needed", 0) or 0)),
+        "Count": min(cap, int(fb.get("packs_needed", 0) or 0)),
         "Unit Price": float(fb.get("unit_price", 0) or 0),
         "Total Price": float(fb.get("total_price", 0) or 0),
         "Link": str(fb.get("url", "") or ""),

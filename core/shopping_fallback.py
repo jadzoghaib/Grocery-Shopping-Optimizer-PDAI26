@@ -12,6 +12,8 @@ import re
 from fractions import Fraction
 from typing import List, Tuple
 
+from core.shopping_caps import get_pack_cap
+
 # ── Unit dictionary (mirrors Pass-1 prompt conversions) ──────────────────────
 # value = (grams_or_ml, unit)
 #   unit="g"  → solid/powder/spice
@@ -274,7 +276,8 @@ def rule_based_select(
         # If we're mixing solids and volumes, assume 1:1 (same as the LLM prompt).
         pass
 
-    packs = min(10, max(1, math.ceil(needed / pack_val))) if pack_val > 0 else 1
+    cap = get_pack_cap(name)
+    packs = min(cap, max(1, math.ceil(needed / pack_val))) if pack_val > 0 else 1
     unit_price = float(top.get("price", 0) or 0)
     total_price = round(packs * unit_price, 2)
 
