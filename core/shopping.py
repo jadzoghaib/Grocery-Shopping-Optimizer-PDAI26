@@ -119,7 +119,7 @@ def _get_tfidf_index():
 
 
 _NON_FOOD_BLOCKLIST = frozenset([
-    # Hygiene / personal care
+    # ── Spanish hygiene / personal care ───────────────────────────────────────
     "toallita", "toallitas", "pañal", "pañales", "compresa", "compresas",
     "tampón", "tampones", "gel de ducha", "champú", "champu",
     "acondicionador", "pasta de dientes", "cepillo de dientes",
@@ -128,7 +128,16 @@ _NON_FOOD_BLOCKLIST = frozenset([
     "jabón de manos", "jabon de manos", "espuma de afeitar", "cuchilla",
     "hilo dental", "enjuague bucal", "mascarilla facial", "contorno de ojos",
     "agua de colonia", "eau de toilette",
-    # Cleaning / household
+    # ── English hygiene / personal care (Mercadona catalog has bilingual names) ─
+    "toothpaste", "whitening toothpaste", "toothbrush", "dental floss",
+    "mouthwash", "shampoo", "conditioner", "shower gel", "body wash",
+    "deodorant", "antiperspirant", "sunscreen", "sun cream", "face cream",
+    "moisturiser", "moisturizer", "serum", "eye cream", "face mask",
+    "makeup", "foundation", "mascara", "lipstick", "nail polish",
+    "razor", "shaving foam", "aftershave lotion", "cologne",
+    "sanitary pad", "tampon", "panty liner", "nappy", "diaper",
+    "baby wipes", "wet wipes", "cotton pads", "cotton buds",
+    # ── Spanish cleaning / household ──────────────────────────────────────────
     "detergente", "suavizante", "lejía", "lejia", "limpiador",
     "fregasuelos", "fregaplatos", "limpiacristales", "ambientador",
     "insecticida", "papel higiénico", "papel higienico",
@@ -137,14 +146,26 @@ _NON_FOOD_BLOCKLIST = frozenset([
     "film transparente", "film cocina", "pastilla lavavajillas",
     "pastillas lavavajillas", "quitamanchas", "desengrasante",
     "abrillantador", "pastilla wc", "friegasuelos",
-    # Baby non-food
+    # ── English cleaning / household ──────────────────────────────────────────
+    "toilet paper", "kitchen roll", "kitchen paper", "paper towel",
+    "bin bags", "trash bags", "garbage bags", "cling film", "cling wrap",
+    "aluminium foil", "aluminum foil", "baking parchment",
+    "dishwasher tablet", "dishwasher tablets", "dishwasher pod",
+    "laundry detergent", "fabric softener", "bleach", "all-purpose cleaner",
+    "glass cleaner", "floor cleaner", "toilet cleaner", "air freshener",
+    "insect repellent", "pest control", "sponge", "cleaning cloth",
+    # ── Baby non-food ─────────────────────────────────────────────────────────
     "crema de bebe", "crema bebé", "pañal bebé", "toallitas bebé",
     "toallitas bebe", "colonia bebe", "crema pañal",
-    # Pharmacy / health
+    # ── Pharmacy / health ─────────────────────────────────────────────────────
     "ibuprofeno", "paracetamol", "vitamina", "suplemento", "probiótico",
     "antiácido", "tiritas", "venda", "termómetro",
-    # Pet non-food
+    "ibuprofen", "paracetamol tablet", "vitamin tablet", "supplement tablet",
+    # ── Pet non-food ─────────────────────────────────────────────────────────
     "arena para gatos", "arenero", "correa", "comedero",
+    "cat litter", "pet collar", "dog lead",
+    # ── Stationery / misc ────────────────────────────────────────────────────
+    "bolígrafo", "cuaderno", "carpeta",
 ])
 
 # URL slugs that indicate Mercadona non-food departments
@@ -174,18 +195,66 @@ def _is_non_food(product_name: str, url: str = "") -> bool:
 # rule-based result directly (Pass 3 fast-path).
 _HIGH_CONF_THRESHOLD = 0.80
 
+# Maps American/generic English ingredient names to how Mercadona's catalog
+# actually names them.  Used as an additional search query on top of the
+# ENGLISH_TO_SPANISH translation so that terms like "baking soda" can find
+# "Bicarbonate of soda Hacendado" which would otherwise be missed.
+_CATALOG_SYNONYMS: dict[str, list[str]] = {
+    "baking soda":      ["bicarbonate", "bicarbonate of soda"],
+    "sodium bicarbonate": ["bicarbonate", "bicarbonate of soda"],
+    "hamburger":        ["burger", "beef burger"],
+    "ground beef":      ["beef mince", "mince beef", "minced beef"],
+    "cornstarch":       ["corn flour", "maizena", "cornflour"],
+    "corn starch":      ["corn flour", "maizena", "cornflour"],
+    "scallion":         ["spring onion"],
+    "eggplant":         ["aubergine"],
+    "zucchini":         ["courgette"],
+    "cilantro":         ["coriander"],
+    "arugula":          ["rocket"],
+    "shrimp":           ["prawn", "prawns"],
+    "heavy cream":      ["double cream", "whipping cream"],
+    "half and half":    ["single cream"],
+    "all-purpose flour": ["plain flour", "bread flour"],
+    "whole milk":       ["full fat milk", "full cream milk"],
+    "skimmed milk":     ["skim milk"],
+    "semisweet chocolate": ["dark chocolate"],
+    "powdered sugar":   ["icing sugar"],
+    "confectioners sugar": ["icing sugar"],
+    "molasses":         ["treacle"],
+    "broiler":          ["grill"],
+    "broiled":          ["grilled"],
+    "scallion":         ["spring onion", "green onion"],
+    "green onion":      ["spring onion"],
+    "lemon juice":      ["lemon", "zumo limon"],
+    "lime juice":       ["lime", "zumo lima"],
+    "chicken broth":    ["chicken stock", "chicken stock cube"],
+    "beef broth":       ["beef stock", "beef stock cube"],
+    "vegetable broth":  ["vegetable stock"],
+    "tomato paste":     ["tomato puree", "tomato concentrate"],
+    "hot pepper":       ["chili pepper", "chilli"],
+    "chili flakes":     ["crushed chilli", "red pepper flakes"],
+    "red pepper flakes": ["crushed chilli", "chilli flakes"],
+}
+
 
 def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, float]:
-    """TF-IDF candidate retrieval with English → Spanish fallback.
+    """TF-IDF candidate retrieval — runs English AND Spanish queries, keeps best.
 
     Returns ``(candidates_df, top1_cosine_score)``. The candidates DataFrame
     contains an additional ``_score`` column with per-row cosine similarity
     (attached for downstream use by the eval harness and the match-quality
     classifier). ``top1_cosine_score`` is 0.0 when no candidates match.
 
+    Strategy
+    --------
+    The catalog is in Spanish, so English queries often score low. The old
+    approach returned English results immediately if *any* row cleared the 0.05
+    floor — e.g. "baking soda" matched soda drinks, "spinach" matched unrelated
+    items.  The fix: collect ALL candidate sets (English, Spanish exact, Spanish
+    partial), then return whichever set has the highest top-1 score.
+
     Non-food products (cleaning supplies, hygiene items, etc.) are filtered
-    out before returning, so grocery ingredients never match wipes, detergent,
-    paper towels, etc.
+    out before returning.
     """
     from sklearn.metrics.pairwise import cosine_similarity
 
@@ -215,23 +284,56 @@ def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, f
             return pd.DataFrame(), 0.0
         return hits, float(hits["_score"].iloc[0])
 
-    # English first.
-    hits, top1 = _score(name)
-    if not hits.empty:
-        return hits, top1
-    # Spanish translation.
-    es = _E2S.get(name.lower().strip())
-    if es:
-        hits, top1 = _score(es)
-        if not hits.empty:
-            return hits, top1
-    # Partial key match.
-    for key, es_val in _E2S.items():
-        if key in name.lower():
-            hits, top1 = _score(es_val)
-            if not hits.empty:
-                return hits, top1
-    return pd.DataFrame(), 0.0
+    # Collect all candidate sets; pick the one with the highest top-1 score.
+    candidates: list[tuple[pd.DataFrame, float]] = []
+
+    name_key = name.lower().strip()
+
+    # 1. English query (original ingredient name)
+    h, s = _score(name)
+    if not h.empty:
+        candidates.append((h, s))
+
+    # 2. Catalog synonyms — maps American English to how Mercadona names things
+    #    e.g. "baking soda" → "bicarbonate", "hamburger" → "burger"
+    for syn in _CATALOG_SYNONYMS.get(name_key, []):
+        h, s = _score(syn)
+        if not h.empty:
+            candidates.append((h, s))
+
+    # 3. Exact Spanish translation
+    es_exact = _E2S.get(name_key)
+    if es_exact:
+        h, s = _score(es_exact)
+        if not h.empty:
+            candidates.append((h, s))
+
+    # 4. Partial key matches (e.g. "broth" inside "chicken broth")
+    if not candidates:
+        for key, es_val in _E2S.items():
+            if key in name_key and key != name_key:
+                h, s = _score(es_val)
+                if not h.empty:
+                    candidates.append((h, s))
+                    break  # take first meaningful partial match
+
+        # Also try partial catalog synonym matches
+        for syn_key, syn_vals in _CATALOG_SYNONYMS.items():
+            if syn_key in name_key and syn_key != name_key:
+                for syn in syn_vals:
+                    h, s = _score(syn)
+                    if not h.empty:
+                        candidates.append((h, s))
+                        break
+                if candidates:
+                    break
+
+    if not candidates:
+        return pd.DataFrame(), 0.0
+
+    # Return the result set whose best product scores highest.
+    candidates.sort(key=lambda x: x[1], reverse=True)
+    return candidates[0]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -327,6 +429,12 @@ def _build_pass3_prompt(batch: list[dict], people_count: int, feedback: dict | N
         "1. Infer the pack size from the product name "
         "(e.g. '450g' → 450 g, '1 L' → 1000 ml, '12 ud' → 12 units, '500 ml' → 500 ml).\n"
         "   If no size in the name, use ref_unit: 'kg'→1000 g, 'L'→1000 ml, 'unit'→1 unit.\n"
+        "   IMPORTANT: Eggs are always sold in cartons. If ref_unit='unit' and the product is eggs, "
+        "the pack size is the number of eggs in the carton (e.g. 6 or 12), NOT 1.\n"
+        "   Similarly, never let pack_size=1 unit for any egg product — look for '6 ud', '12 ud' "
+        "in the product name or default to 6 if not stated.\n"
+        "   For generic 'cheese' or 'queso', prefer a block or sliced cheese (queso tierno, "
+        "queso semicurado) over specialty cheese (blue cheese spread, cheese with herbs).\n"
         "2. Convert pack_size to the SAME unit as total_needed before dividing.\n"
         f"3. packs_needed = ceil((total_needed × {people_count}) / pack_size). "
         "Always round UP. This scales the quantity for the number of people.\n"
@@ -703,6 +811,9 @@ def pass2_node(state: ShoppingState) -> ShoppingState:
         name = ing.get("name", "")
         total = ing.get("total", 0)
         unit = ing.get("unit", "")
+        # Skip items with zero or negligible quantity — they shouldn't appear in the basket.
+        if total == 0 or (isinstance(total, float) and total < 0.01):
+            continue
         hits, top_score = _search_bilingual_scored(name, top_k=5)
         cand_ctx.append({
             "name": name,
