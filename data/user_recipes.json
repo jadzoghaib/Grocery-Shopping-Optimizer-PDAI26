@@ -96,5 +96,31 @@
     "prep_time": 45,
     "rating": 4.0,
     "source_url": "https://youtu.be/r0cZ0tqelhM"
+  },
+  {
+    "name": "Cheesy Baked Pasta",
+    "category": "Main Dish",
+    "ingredients": "400 g pasta, 250 g onions, 250 g carrots, 250 g celery, 2-3 cloves garlic, 1000 g ground beef, 28 g olive oil, 20 g tomato puree, 700 g pata, 500 g water, 25 g stock powder, 15 g dry gelatin, 100 g shredded mozzarella cheese, 50 g Parmesan cheese",
+    "instructions": "Step 1: Cook the pasta in salted water for 11 minutes until al dente.\nStep 2: Prepare the sofrito by dicing onions, carrots, and celery into fine pieces and chopping garlic.\nStep 3: Cook the sofrito in olive oil over medium heat for 20 minutes, stirring occasionally.\nStep 4: Add ground beef to the pan and cook until browned, breaking it up with a spatula.\nStep 5: Add tomato puree, pata, water, stock powder, and dry gelatin to the pan and stir to combine.\nStep 6: Simmer the sauce for 10 minutes with the lid on and 10 minutes with the lid off to reduce and intensify the flavors.\nStep 7: Combine the cooked pasta and sauce in a baking dish and top with shredded mozzarella cheese.\nStep 8: Place the dish under the broiler for 2 minutes to melt the cheese.\nStep 9: Divide the pasta into portions and cool before storing in the fridge or freezer.",
+    "calories": 400.0,
+    "protein": 65.0,
+    "carbs": 40.0,
+    "fat": 15.0,
+    "prep_time": 30,
+    "rating": 5.0,
+    "source_url": "https://youtu.be/kRwMYvuUR4s"
+  },
+  {
+    "name": "15-MINUTE HIGH PROTEIN NOODLE RECIPE WITH TOFU",
+    "category": "Main Dish",
+    "ingredients": "2 spring onions, chopped, 50g cooked broad beans, peas or edamame beans, 140g firm tofu, crumbled, 1tbs + 1 tsp tamari sauce, 1 tsp of vegetable oil for frying, a handful of spinach or spring greens, roughly chopped, 65g rice noodles, water for boiling, 3tbs teriyaki sauce, 1/2 tsp mirin, 1 tsp sesame oil, 2 tbs of sesame seeds, a handful of crushed peanuts, 1-2 tbs chilli flakes or chopped chillis",
+    "instructions": "Chop your spring onions, set aside.\nSelect and weigh your preferred legume, and set aside. If you’re using edamame or broad beans, make sure the shells/skins are removed. Including these will give your noodle dish a protein boost!\nPress your tofu to remove the surplus liquid, then crumble it up so it resembles the texture of scrambled egg. You can do this by hand or by using a fork. Mix your tofu with your tamari sauce.\nNext, place a non-stick frying pan over a medium high heat. Add your vegetable oil for frying.",
+    "calories": 400.0,
+    "protein": 25.0,
+    "carbs": 40.0,
+    "fat": 15.0,
+    "prep_time": 15,
+    "rating": 5.0,
+    "source_url": "https://thelittleplantation.co.uk/blog/15-minute-high-protein-noodle-recipe"
   }
 ]

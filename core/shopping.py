@@ -42,6 +42,7 @@ from __future__ import annotations
 import json
 import math
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, TypedDict
 
 import pandas as pd
@@ -123,24 +124,55 @@ _NON_FOOD_BLOCKLIST = frozenset([
     "tampón", "tampones", "gel de ducha", "champú", "champu",
     "acondicionador", "pasta de dientes", "cepillo de dientes",
     "desodorante", "colonia", "perfume", "crema hidratante",
-    "protector solar", "aftershave", "maquillaje", "loción",
-    "jabón de manos", "jabon de manos",
+    "protector solar", "aftershave", "maquillaje", "loción", "serum",
+    "jabón de manos", "jabon de manos", "espuma de afeitar", "cuchilla",
+    "hilo dental", "enjuague bucal", "mascarilla facial", "contorno de ojos",
+    "agua de colonia", "eau de toilette",
     # Cleaning / household
     "detergente", "suavizante", "lejía", "lejia", "limpiador",
     "fregasuelos", "fregaplatos", "limpiacristales", "ambientador",
     "insecticida", "papel higiénico", "papel higienico",
     "papel de cocina", "papel absorbente", "esponja", "bayeta",
     "bolsa de basura", "bolsas de basura", "papel aluminio",
-    "film transparente", "film cocina",
+    "film transparente", "film cocina", "pastilla lavavajillas",
+    "pastillas lavavajillas", "quitamanchas", "desengrasante",
+    "abrillantador", "pastilla wc", "friegasuelos",
     # Baby non-food
-    "crema de bebe", "crema bebé", "pañal bebé",
+    "crema de bebe", "crema bebé", "pañal bebé", "toallitas bebé",
+    "toallitas bebe", "colonia bebe", "crema pañal",
+    # Pharmacy / health
+    "ibuprofeno", "paracetamol", "vitamina", "suplemento", "probiótico",
+    "antiácido", "tiritas", "venda", "termómetro",
+    # Pet non-food
+    "arena para gatos", "arenero", "correa", "comedero",
+])
+
+# URL slugs that indicate Mercadona non-food departments
+_NON_FOOD_URL_SLUGS = frozenset([
+    "/drogueria/", "/higiene/", "/bebe/cuidado", "/farmacia/",
+    "/mascotas/accesorios", "/papeleria/",
 ])
 
 
-def _is_non_food(product_name: str) -> bool:
-    """Return True if the product name matches a known non-food keyword."""
+def _is_non_food(product_name: str, url: str = "") -> bool:
+    """Return True if the product is a non-food item.
+
+    Checks both the product name against a keyword blocklist and the
+    Mercadona URL path against known non-food department slugs.
+    """
     name_lower = product_name.lower()
-    return any(kw in name_lower for kw in _NON_FOOD_BLOCKLIST)
+    if any(kw in name_lower for kw in _NON_FOOD_BLOCKLIST):
+        return True
+    if url:
+        url_lower = url.lower()
+        if any(slug in url_lower for slug in _NON_FOOD_URL_SLUGS):
+            return True
+    return False
+
+
+# Confidence threshold above which we skip the LLM and use the
+# rule-based result directly (Pass 3 fast-path).
+_HIGH_CONF_THRESHOLD = 0.80
 
 
 def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, float]:
@@ -174,8 +206,10 @@ def _search_bilingual_scored(name: str, top_k: int = 5) -> tuple[pd.DataFrame, f
             return pd.DataFrame(), 0.0
         hits = df.iloc[idx].copy().reset_index(drop=True)
         hits["_score"] = [float(scores[i]) for i in idx]
-        # Filter out non-food products
-        hits = hits[~hits["name"].astype(str).apply(_is_non_food)].reset_index(drop=True)
+        # Filter out non-food products (check name + URL)
+        hits = hits[~hits.apply(
+            lambda r: _is_non_food(str(r["name"]), str(r.get("url", ""))), axis=1
+        )].reset_index(drop=True)
         hits = hits.head(top_k)
         if hits.empty:
             return pd.DataFrame(), 0.0
@@ -479,110 +513,145 @@ def _reconcile_match_quality(llm_tag: str, deterministic_tag: str, reason: str, 
     return deterministic_tag, reason
 
 
+def _process_pass3_batch(
+    batch: list[dict], groq_client, people_count: int, feedback: dict | None
+) -> SelectionResponse | None:
+    """Run one Pass-3 LLM batch. Returns parsed SelectionResponse or None on failure."""
+    prompt = _build_pass3_prompt(batch, people_count, feedback=feedback)
+    text, ok = _llm_call(
+        groq_client, prompt, pass_name="pass3", timeout=PASS3_TIMEOUT,
+        metadata={"batch_size": len(batch)},
+    )
+    if not ok or not text:
+        return None
+    try:
+        return SelectionResponse.model_validate(json.loads(text))
+    except (json.JSONDecodeError, ValidationError) as e:
+        print(f"[shopping] Pass 3 validation error: {e}")
+        return None
+
+
+def _rows_from_parsed_batch(
+    parsed: SelectionResponse, batch: list[dict], people_count: int
+) -> list[tuple[int, dict]]:
+    """Convert a validated SelectionResponse into (original_idx, row) pairs."""
+    by_name: dict[str, dict] = {it["name"].lower(): it for it in batch}
+    covered: set[str] = set()
+    result: list[tuple[int, dict]] = []
+
+    for sp in parsed.products:
+        key = (sp.ingredient or "").lower().strip()
+        item = by_name.get(key)
+        if item is None:
+            continue
+        covered.add(key)
+        cand_records = item["candidates_df"].to_dict("records")
+        ok_guards, reasons = run_pass3_guards(
+            {
+                "product_name": sp.product_name,
+                "packs_needed": sp.packs_needed,
+                "unit_price": sp.unit_price,
+                "total_price": sp.total_price,
+                "total_needed": sp.total_needed,
+                "pack_size": sp.pack_size,
+                "url": sp.url,
+            },
+            cand_records,
+            people_count,
+        )
+        if not ok_guards:
+            print(f"[shopping] Guards failed for '{sp.ingredient}': {reasons} -> fallback")
+            fb = rule_based_select(cand_records, item["ingredient"], people_count)
+            row = _row_from_fallback(fb)
+            row["_source"] = "fallback"
+            result.append((item["_orig_idx"], row))
+            continue
+
+        det_tag = classify_match_quality(sp.ingredient, sp.product_name, item.get("top_score", 0.0))
+        final_tag, final_reason = _reconcile_match_quality(
+            sp.match_quality, det_tag, sp.match_reason, sp.ingredient,
+        )
+        sp_patched = sp.model_copy(update={"match_quality": final_tag, "match_reason": final_reason})
+        row = _row_from_selected(sp_patched)
+        row["_source"] = "llm"
+        result.append((item["_orig_idx"], row))
+
+    # Fallback for items the LLM silently skipped
+    for key, item in by_name.items():
+        if key in covered:
+            continue
+        print(f"[shopping] Pass 3 missed '{key}' -> fallback")
+        fb = rule_based_select(item["candidates_df"].to_dict("records"), item["ingredient"], people_count)
+        row = _row_from_fallback(fb)
+        row["_source"] = "fallback"
+        result.append((item["_orig_idx"], row))
+
+    return result
+
+
 def _run_pass3(
     cand_ctx: list[dict], groq_client, people_count: int, feedback: dict | None = None
 ) -> list[dict]:
-    """Process Pass 3 in batches of 5. Returns a list of DataFrame-row dicts."""
+    """Pass 3 with two performance optimisations:
+
+    1. **High-confidence fast path** — items where the TF-IDF top-1 score
+       meets or exceeds ``_HIGH_CONF_THRESHOLD`` skip the LLM entirely and
+       are resolved instantly with ``rule_based_select``.
+
+    2. **Parallel LLM batches** — remaining items are split into batches of 5
+       and submitted simultaneously to a thread pool, so Groq latency for
+       batch N does not block batch N+1.
+
+    Results are reassembled in the original ``cand_ctx`` order.
+    """
     batch_size = 5
-    out_rows: list[dict] = []
+    # Tag each item with its position so we can restore order after parallel execution.
+    for i, item in enumerate(cand_ctx):
+        item["_orig_idx"] = i
 
-    for start in range(0, len(cand_ctx), batch_size):
-        batch = cand_ctx[start:start + batch_size]
-        prompt = _build_pass3_prompt(batch, people_count, feedback=feedback)
+    indexed_rows: list[tuple[int, dict]] = []
 
-        text, ok = _llm_call(
-            groq_client, prompt, pass_name="pass3", timeout=PASS3_TIMEOUT,
-            metadata={"batch_size": len(batch), "batch_start": start},
-        )
-
-        # If the whole batch call failed → fallback every item.
-        if not ok or not text:
-            print("[shopping] Pass 3 batch LLM call failed -> per-item fallback")
-            for it in batch:
-                fb = rule_based_select(it["candidates_df"].to_dict("records"), it["ingredient"], people_count)
-                row = _row_from_fallback(fb)
-                row["_source"] = "fallback"
-                out_rows.append(row)
-            continue
-
-        # Validate.
-        try:
-            raw = json.loads(text)
-            parsed = SelectionResponse.model_validate(raw)
-        except (json.JSONDecodeError, ValidationError) as e:
-            print(f"[shopping] Pass 3 validation failed for batch starting {start} -> fallback. {e}")
-            for it in batch:
-                fb = rule_based_select(it["candidates_df"].to_dict("records"), it["ingredient"], people_count)
-                row = _row_from_fallback(fb)
-                row["_source"] = "fallback"
-                out_rows.append(row)
-            continue
-
-        # Build an ingredient-name → batch-item lookup so we can pair LLM
-        # products back to the TF-IDF candidates and score.
-        by_name: dict[str, dict] = {it["name"].lower(): it for it in batch}
-
-        # Track which items in `batch` got a corresponding LLM product so we can
-        # fall-back for any missing items.
-        covered: set[str] = set()
-
-        for sp in parsed.products:
-            key = (sp.ingredient or "").lower().strip()
-            item = by_name.get(key)
-            if item is None:
-                # LLM produced an unexpected ingredient — skip & count as missing.
-                continue
-            covered.add(key)
-
-            cand_records = item["candidates_df"].to_dict("records")
-            ok_guards, reasons = run_pass3_guards(
-                {
-                    "product_name": sp.product_name,
-                    "packs_needed": sp.packs_needed,
-                    "unit_price": sp.unit_price,
-                    "total_price": sp.total_price,
-                    "total_needed": sp.total_needed,
-                    "pack_size": sp.pack_size,
-                    "url": sp.url,
-                },
-                cand_records,
-                people_count,
-            )
-
-            if not ok_guards:
-                print(f"[shopping] Guards failed for '{sp.ingredient}': {reasons} -> fallback")
-                fb = rule_based_select(cand_records, item["ingredient"], people_count)
-                row = _row_from_fallback(fb)
-                row["_source"] = "fallback"
-                out_rows.append(row)
-                continue
-
-            # Cross-check match_quality tag.
-            det_tag = classify_match_quality(
-                sp.ingredient, sp.product_name, item.get("top_score", 0.0),
-            )
-            final_tag, final_reason = _reconcile_match_quality(
-                sp.match_quality, det_tag, sp.match_reason, sp.ingredient,
-            )
-            sp_patched = sp.model_copy(update={"match_quality": final_tag, "match_reason": final_reason})
-
-            row = _row_from_selected(sp_patched)
-            row["_source"] = "llm"
-            out_rows.append(row)
-
-        # Fallback for any items the LLM silently skipped.
-        for key, item in by_name.items():
-            if key in covered:
-                continue
-            print(f"[shopping] Pass 3 missed '{key}' -> fallback")
-            fb = rule_based_select(
-                item["candidates_df"].to_dict("records"), item["ingredient"], people_count,
-            )
+    # ── Fast path ─────────────────────────────────────────────────────────────
+    llm_items: list[dict] = []
+    for item in cand_ctx:
+        if item.get("top_score", 0.0) >= _HIGH_CONF_THRESHOLD:
+            fb = rule_based_select(item["candidates_df"].to_dict("records"), item["ingredient"], people_count)
             row = _row_from_fallback(fb)
-            row["_source"] = "fallback"
-            out_rows.append(row)
+            row["_source"] = "fast_path"
+            indexed_rows.append((item["_orig_idx"], row))
+            print(f"[shopping] Fast-path (score={item['top_score']:.2f}) for '{item['name']}'")
+        else:
+            llm_items.append(item)
 
-    return out_rows
+    # ── Parallel LLM batches ──────────────────────────────────────────────────
+    batches = [llm_items[i:i + batch_size] for i in range(0, len(llm_items), batch_size)]
+    if batches:
+        with ThreadPoolExecutor(max_workers=min(4, len(batches))) as pool:
+            future_to_batch = {
+                pool.submit(_process_pass3_batch, batch, groq_client, people_count, feedback): batch
+                for batch in batches
+            }
+            for future in as_completed(future_to_batch):
+                batch = future_to_batch[future]
+                try:
+                    parsed = future.result()
+                except Exception as exc:
+                    print(f"[shopping] Batch future raised: {exc}")
+                    parsed = None
+
+                if parsed is None:
+                    print(f"[shopping] Pass 3 batch failed -> per-item fallback ({len(batch)} items)")
+                    for it in batch:
+                        fb = rule_based_select(it["candidates_df"].to_dict("records"), it["ingredient"], people_count)
+                        row = _row_from_fallback(fb)
+                        row["_source"] = "fallback"
+                        indexed_rows.append((it["_orig_idx"], row))
+                else:
+                    indexed_rows.extend(_rows_from_parsed_batch(parsed, batch, people_count))
+
+    # Restore original order
+    indexed_rows.sort(key=lambda x: x[0])
+    return [row for _, row in indexed_rows]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
