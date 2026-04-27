@@ -116,8 +116,8 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
 def _generate_with_groq(ingredients: list[str], api_key: str) -> dict | None:
     """Call Groq to generate a recipe. Returns parsed dict or None on failure."""
-    from groq import Groq
-    client = Groq(api_key=api_key.strip())
+    from core.groq_client import make_groq_client
+    client = make_groq_client(api_key)
     prompt = _GENERATION_PROMPT.format(ingredients="\n".join(f"- {i}" for i in ingredients))
 
     try:

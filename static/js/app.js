@@ -54,8 +54,7 @@ function toast(msg, type = 'info') {
 function updateBadge() {
   const b = document.getElementById('basket-badge');
   if (!b) return;
-  if (S.basket.length) { b.style.display = ''; b.textContent = S.basket.length; }
-  else { b.style.display = 'none'; }
+  b.style.display = S.basket.length ? '' : 'none';
 }
 
 // ── Basket helpers ───────────────────────────────────────────────────────────
@@ -74,7 +73,7 @@ function route() {
   const fn = pages[page] || renderDashboard;
 
   // Update nav
-  document.querySelectorAll('.nav-links a').forEach(a => {
+  document.querySelectorAll('.nav-item').forEach(a => {
     a.classList.toggle('active', (a.dataset.page || 'dashboard') === (page || 'dashboard'));
   });
 
@@ -96,81 +95,289 @@ function route() {
 function renderDashboard(el) {
   const plan = S.mealPlan || [];
   const basket = S.basket || [];
+  const days = [...new Set(plan.map(m=>m.Day))];
   const totalCost = basket.reduce((s,i) => s + (parseFloat(i.price)||0)*(i.count||1), 0);
-  const totalCal  = plan.length ? Math.round(plan.reduce((s,m)=>s+(+m.calories||0),0) / Math.max(1,[...new Set(plan.map(m=>m.Day))].length)) : 0;
+  const totalCal  = plan.length ? Math.round(plan.reduce((s,m)=>s+(+m.calories||0),0) / Math.max(1,days.length)) : 0;
+  const avgProt   = plan.length ? Math.round(plan.reduce((s,m)=>s+(+m.protein||0),0) / Math.max(1,days.length)) : 0;
+  const avgCarb   = plan.length ? Math.round(plan.reduce((s,m)=>s+(+m.carbs||0),0) / Math.max(1,days.length)) : 0;
+  const avgFat    = plan.length ? Math.round(plan.reduce((s,m)=>s+(+m.fat||0),0) / Math.max(1,days.length)) : 0;
+
+  // Today's meals — first 4 from plan, grouped by slot order
+  const slotOrder = ['Breakfast','Lunch','Snack','Dinner','Dessert','Beverage'];
+  const todayMeals = plan.length
+    ? slotOrder.map(slot => plan.find(m=>m.Meal===slot)).filter(Boolean).slice(0,4)
+    : [];
+  const slotEmojis = {Breakfast:'🥣',Lunch:'🌯',Snack:'🍎',Dinner:'🐟',Dessert:'🍮',Beverage:'🥤'};
+
+  // Basket preview (first 3)
+  const previewItems = basket.slice(0,3);
+  const basketEmojis = ['🥗','🍗','🥑','🥛','🍞','🫒','🧀','🥩','🐟'];
+
+  // Products from shopping list for "Recommended Products" strip
+  const shopList = S.shoppingList || [];
+  const products = shopList.slice(0,5).map(i => ({
+    name: i.SKU || i.Ingredient || '',
+    price: `€${parseFloat(i['Unit Price']||0).toFixed(2)}`,
+    unit: i['Pack Size'] || '',
+    bg: '#edfaf4',
+    emoji: '🛒',
+    url: i.Link || '',
+  }));
+  const displayProducts = products;
+
+  // Macro ring — % of goal (assume 2000 kcal, 120g prot, 250g carb, 65g fat default)
+  const calGoal = 2000, protGoal = 120, carbGoal = 250, fatGoal = 65;
+  const calPct  = totalCal ? Math.min(100, Math.round(totalCal/calGoal*100)) : 0;
+  const protPct = avgProt  ? Math.min(100, Math.round(avgProt/protGoal*100))  : 0;
+  const carbPct = avgCarb  ? Math.min(100, Math.round(avgCarb/carbGoal*100))  : 0;
+  const fatPct  = avgFat   ? Math.min(100, Math.round(avgFat/fatGoal*100))    : 0;
+  // SVG circle: circumference = 2π×32 ≈ 201; stroke-dashoffset = 201 * (1 - pct/100)
+  const ringOffset = Math.round(201 * (1 - calPct/100));
+
+  // Activity feed
+  const activityItems = [
+    plan.length
+      ? {icon:'fa-wand-magic-sparkles',cls:'ai-green',text:`<strong>Meal plan generated</strong> — ${days.length}-day plan, ${totalCal} kcal avg`,time:'Active'}
+      : {icon:'fa-wand-magic-sparkles',cls:'ai-green',text:'<strong>No meal plan yet</strong> — generate one to get started',time:''},
+    basket.length
+      ? {icon:'fa-basket-shopping',cls:'ai-amber',text:`<strong>${basket.length} item${basket.length!==1?'s':''} added</strong> to basket · €${totalCost.toFixed(2)} est.`,time:'Current'}
+      : {icon:'fa-basket-shopping',cls:'ai-amber',text:'<strong>Basket empty</strong> — add items from your shopping list',time:''},
+    {icon:'fa-robot',cls:'ai-blue',text:'AI assistant ready — ask about <strong>recipes, nutrition</strong> or products',time:''},
+  ];
 
   el.innerHTML = `
-    <div class="hero-greeting">
-      <div class="hero-text">
-        <div class="greeting-sub">Good morning,</div>
-        <h2>Ready to eat well today?</h2>
-        <p>${plan.length ? `Your ${[...new Set(plan.map(m=>m.Day))].length}-day meal plan is active. Basket has ${basket.length} item${basket.length!==1?'s':''}.` : 'Generate a meal plan to get started with your personalised grocery list.'}</p>
-        <div class="hero-actions">
-          <button class="btn btn-primary" onclick="location.hash='#/planner'"><i class="fa-solid fa-wand-magic-sparkles"></i> Meal Planner</button>
-          <button class="btn btn-ghost" style="border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.8)" onclick="location.hash='#/basket'"><i class="fa-solid fa-basket-shopping"></i> My Basket</button>
+    <div class="dash-grid">
+      <div class="dash-main">
+
+        <!-- Status banner -->
+        <div class="status-banner">
+          <div class="status-banner-left">
+            <div class="status-pill"><span class="pulse"></span> ${plan.length ? 'Plan Active' : 'Ready'}</div>
+            <h2>Good morning 👋</h2>
+            <p>${plan.length
+              ? `${days.length}-day plan · ${plan.length} meals · €${totalCost.toFixed(2)} est. spend`
+              : 'Generate a meal plan to get started with your personalised grocery list.'}</p>
+          </div>
+          <div class="status-banner-right">
+            <button class="btn btn-green" onclick="location.hash='#/planner'"><i class="fa-solid fa-wand-magic-sparkles"></i> ${plan.length ? 'New Plan' : 'Get Started'}</button>
+            <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);color:#fff" onclick="location.hash='#/basket'"><i class="fa-solid fa-basket-shopping"></i> Basket</button>
+            <button class="btn btn-outline" style="background:rgba(255,80,80,.15);border-color:rgba(255,120,120,.35);color:#ffaaaa;font-size:.78rem" onclick="clearSession()"><i class="fa-solid fa-trash-can"></i> Clear Session</button>
+          </div>
         </div>
-      </div>
-      <div class="hero-visual">🥗</div>
-    </div>
 
-    <div class="kpi-grid">
-      <div class="kpi">
-        <div class="kpi-icon ci-green"><i class="fa-solid fa-utensils"></i></div>
-        <div class="kpi-text"><h4>Meals Planned</h4><div class="kpi-val">${plan.length}</div><div class="kpi-trend">${plan.length ? [...new Set(plan.map(m=>m.Day))].length+'-day plan' : 'No plan yet'}</div></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-icon ci-amber"><i class="fa-solid fa-basket-shopping"></i></div>
-        <div class="kpi-text"><h4>Basket Items</h4><div class="kpi-val">${basket.length}</div><div class="kpi-trend">${basket.length ? '€'+totalCost.toFixed(2)+' estimated' : 'Empty basket'}</div></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-icon ci-blue"><i class="fa-solid fa-fire"></i></div>
-        <div class="kpi-text"><h4>Avg Calories</h4><div class="kpi-val">${totalCal || '—'}</div><div class="kpi-trend">${totalCal ? 'per day' : 'Generate plan first'}</div></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-icon ci-teal"><i class="fa-solid fa-euro-sign"></i></div>
-        <div class="kpi-text"><h4>Basket Total</h4><div class="kpi-val">${basket.length ? '€'+totalCost.toFixed(2) : '€0'}</div><div class="kpi-trend">${basket.length ? basket.length+' items' : 'Add items'}</div></div>
-      </div>
-    </div>
+        <!-- Stat strip -->
+        <div class="stat-strip">
+          <div class="stat-card">
+            <div class="stat-label">Calories / day</div>
+            <div class="stat-val green">${plan.length ? totalCal : '—'}</div>
+            <div class="stat-sub">${plan.length ? `of ${calGoal} goal` : 'Generate a plan'}</div>
+            ${plan.length && calPct ? `<div class="stat-change up">↑ ${calPct}% on target</div>` : ''}
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Protein / day</div>
+            <div class="stat-val black">${plan.length ? avgProt+'g' : '—'}</div>
+            <div class="stat-sub">${plan.length ? `of ${protGoal}g goal` : 'Generate a plan'}</div>
+            ${plan.length && protPct ? `<div class="stat-change up">↑ ${protPct}%</div>` : ''}
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Weekly spend</div>
+            <div class="stat-val amber">${basket.length ? '€'+totalCost.toFixed(2) : '—'}</div>
+            <div class="stat-sub">${basket.length ? basket.length+' item'+(basket.length!==1?'s':'')+' in basket' : 'Basket is empty'}</div>
+            ${basket.length ? '<div class="stat-change up">↓ budget tracking</div>' : ''}
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Days planned</div>
+            <div class="stat-val black">${plan.length ? days.length : '—'}</div>
+            <div class="stat-sub">${plan.length ? days.length+' day'+(days.length!==1?'s':'')+' of meals' : 'Generate a plan'}</div>
+            ${shopList.length ? `<div class="stat-change" style="color:var(--g600)">${shopList.length} products matched</div>` : ''}
+          </div>
+        </div>
 
-    <div class="card-grid-3">
-      <div class="quick-card" onclick="location.hash='#/planner'">
-        <div class="quick-card-icon ci-green"><i class="fa-solid fa-wand-magic-sparkles" style="color:#fff"></i></div>
-        <h4>Generate Meal Plan</h4>
-        <p>AI-optimized plan based on your macros, budget, and preferences.</p>
-        <div class="quick-card-arrow"><i class="fa-solid fa-arrow-right"></i> Start planner</div>
-      </div>
-      <div class="quick-card" onclick="location.hash='#/recipes'">
-        <div class="quick-card-icon ci-amber"><i class="fa-solid fa-book-open" style="color:#fff"></i></div>
-        <h4>Browse Recipes</h4>
-        <p>Explore thousands of recipes from the Mercadona database, filterable by macro goals.</p>
-        <div class="quick-card-arrow"><i class="fa-solid fa-arrow-right"></i> View recipes</div>
-      </div>
-      <div class="quick-card" onclick="location.hash='#/fridge'">
-        <div class="quick-card-icon ci-teal"><i class="fa-solid fa-refrigerator" style="color:#fff"></i></div>
-        <h4>What's in My Fridge?</h4>
-        <p>Tell the AI what you have and it'll suggest recipes with zero waste.</p>
-        <div class="quick-card-arrow"><i class="fa-solid fa-arrow-right"></i> Check fridge</div>
-      </div>
-    </div>
+        <!-- Today's Meals -->
+        <div class="card card-0">
+          <div style="padding:14px 16px 0" class="section-hd">
+            <h3>Today's Meals</h3>
+            ${plan.length ? `<a onclick="location.hash='#/planner'" style="cursor:pointer">View full plan →</a>` : ''}
+          </div>
+          ${plan.length ? `
+          <div class="h-scroll" style="padding:12px 16px 14px">
+            ${todayMeals.map(m=>`
+              <div class="meal-thumb" onclick="location.hash='#/planner'" style="cursor:pointer">
+                <div class="meal-thumb-img">${slotEmojis[m.Meal]||'🍽️'}</div>
+                <div class="meal-thumb-slot">${m.Meal||''}</div>
+                <div class="meal-thumb-name">${m.name||'Recipe'}</div>
+                <div class="meal-thumb-cal">${Math.round(m.calories||0)} kcal</div>
+              </div>`).join('')}
+            <div class="meal-thumb" style="align-items:center;justify-content:center;display:flex;flex-direction:column;gap:6px;opacity:.5;cursor:pointer;min-width:100px" onclick="location.hash='#/planner'">
+              <i class="fa-solid fa-plus" style="font-size:1.3rem;color:var(--g600)"></i>
+              <span style="font-size:.72rem;font-weight:700;color:var(--g600)">Edit plan</span>
+            </div>
+          </div>
+          ` : `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 16px;text-align:center">
+            <div style="font-size:2.5rem;opacity:.25">🍽️</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text2)">No meals planned yet</div>
+            <div style="font-size:.75rem;color:var(--text3)">Generate a meal plan and your daily meals will appear here.</div>
+            <button class="btn btn-green" style="margin-top:4px" onclick="location.hash='#/planner'">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Meal Plan
+            </button>
+          </div>
+          `}
+        </div>
 
-    <div class="card mt-3">
-      <div class="card-header"><i class="fa-solid fa-chart-bar"></i><h3>Meal Plan Analytics</h3></div>
-      <iframe id="dash-overview" src="/dash/overview" style="width:100%;height:580px;border:none;border-radius:6px" loading="lazy"></iframe>
+        <!-- Weekly Overview -->
+        <div class="card card-0">
+          <div style="padding:14px 16px 0" class="section-hd">
+            <h3>Weekly Overview</h3>
+            ${plan.length ? `<a onclick="location.hash='#/calendar'" style="cursor:pointer">Full calendar →</a>` : ''}
+          </div>
+          ${plan.length ? (() => {
+            const slotCols = {Breakfast:'#f59e0b',Lunch:'#00a651',Snack:'#3d8bff',Dinner:'#8b5cf6',Dessert:'#ec4899',Beverage:'#06b6d4'};
+            return `<div style="padding:10px 16px 14px;display:flex;flex-direction:column;gap:6px">
+              ${days.slice(0,7).map(day => {
+                const dayMeals = plan.filter(m=>m.Day===day);
+                const dayKcal = Math.round(dayMeals.reduce((s,m)=>s+(+m.calories||0),0));
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:var(--g50)">
+                  <div style="font-size:.7rem;font-weight:800;color:var(--text3);width:72px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px">${day}</div>
+                  <div style="display:flex;gap:5px;flex:1;flex-wrap:wrap">
+                    ${dayMeals.map(m=>`
+                      <span style="font-size:.65rem;font-weight:600;padding:2px 7px;border-radius:99px;background:${slotCols[m.Meal]||'#ccc'}22;color:${slotCols[m.Meal]||'#888'};border:1px solid ${slotCols[m.Meal]||'#ccc'}44">${m.Meal}</span>
+                    `).join('')}
+                  </div>
+                  <div style="font-size:.7rem;font-weight:700;color:var(--text2);flex-shrink:0">${dayKcal} kcal</div>
+                </div>`;
+              }).join('')}
+            </div>`;
+          })() : `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 16px;text-align:center">
+            <div style="font-size:2.5rem;opacity:.25">📅</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text2)">No plan to display</div>
+            <div style="font-size:.75rem;color:var(--text3)">Your weekly meal breakdown will appear here once you generate a plan.</div>
+            <button class="btn btn-green" style="margin-top:4px" onclick="location.hash='#/planner'">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Get Started
+            </button>
+          </div>
+          `}
+        </div>
+
+      </div><!-- /dash-main -->
+
+      <div class="dash-side">
+
+        <!-- Basket preview -->
+        <div class="basket-preview">
+          <div class="basket-preview-hd">
+            <h4><i class="fa-solid fa-basket-shopping" style="margin-right:6px"></i> Current Basket</h4>
+            <span class="count">${basket.length}</span>
+          </div>
+          ${previewItems.length
+            ? previewItems.map((item,i)=>`
+              <div class="basket-row">
+                <div class="basket-row-dot">${basketEmojis[i%basketEmojis.length]}</div>
+                <div class="basket-row-name">${item.name||''}</div>
+                <div class="basket-row-price">€${((item.price||0)*(item.count||1)).toFixed(2)}</div>
+              </div>`).join('')
+            : `<div class="basket-row"><div class="basket-row-name" style="color:var(--text3);font-size:.75rem;padding:4px 0">No items yet — add from shopping list</div></div>`}
+          ${basket.length > 3 ? `<div class="basket-row"><div class="basket-row-name" style="color:var(--text3);font-size:.72rem">+${basket.length-3} more items…</div></div>` : ''}
+          <div class="basket-total-row"><span>Total</span><span>€${totalCost.toFixed(2)}</span></div>
+          <div style="padding:12px 14px">
+            <button class="btn btn-green" style="width:100%;justify-content:center" onclick="location.hash='#/basket'">
+              <i class="fa-solid fa-arrow-right"></i> Go to Basket
+            </button>
+          </div>
+        </div>
+
+        <!-- Macro ring -->
+        <div class="card">
+          <div class="section-hd"><h3>Today's Macros</h3><span class="badge badge-green">${calPct>=80?'On track':'Set a plan'}</span></div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <svg width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0">
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#f2f2f2" stroke-width="10"/>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#00a651" stroke-width="10"
+                stroke-dasharray="201" stroke-dashoffset="${ringOffset}"
+                stroke-linecap="round" transform="rotate(-90 40 40)"/>
+              <text x="40" y="44" text-anchor="middle" font-size="13" font-weight="900"
+                fill="#0a0a0a" font-family="Inter">${calPct}%</text>
+            </svg>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+              ${[
+                ['Protein', avgProt+'g', protGoal+'g', '#3d8bff', protPct],
+                ['Carbs',   avgCarb+'g', carbGoal+'g', '#ffb800', carbPct],
+                ['Fat',     avgFat+'g',  fatGoal+'g',  '#00a651', fatPct],
+              ].map(([l,v,t,c,p])=>`
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:.68rem;font-weight:600;margin-bottom:3px">
+                    <span style="color:var(--text3)">${l}</span><span>${v} / ${t}</span>
+                  </div>
+                  <div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
+                    <div style="height:100%;width:${p}%;background:${c};border-radius:3px;transition:width .6s ease"></div>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity feed -->
+        <div class="card">
+          <div class="section-hd"><h3>Recent Activity</h3></div>
+          ${activityItems.map(a=>`
+            <div class="activity-item">
+              <div class="activity-icon ${a.cls}"><i class="fa-solid ${a.icon}"></i></div>
+              <div style="flex:1">
+                <div class="activity-text">${a.text}</div>
+                ${a.time ? `<div class="activity-time">${a.time}</div>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>
+
+      </div><!-- /dash-side -->
     </div>
   `;
+}
+
+function clearSession() {
+  if (!confirm('This will clear your meal plan, basket, and chat history.\n\nAre you sure you want to proceed?')) return;
+  S.mealPlan = [];
+  S.basket = [];
+  S.shoppingList = [];
+  S.chat = [];
+  S.plannerStep = 0;
+  save();
+  // Update basket badge
+  document.getElementById('basket-badge') && (document.getElementById('basket-badge').style.display = 'none');
+  // Re-render dashboard
+  renderDashboard(document.getElementById('content'));
+  toast('Session cleared — plan, basket and history have been reset.', 'success');
 }
 
 // ── Meal Planner ─────────────────────────────────────────────────────────────
 function renderPlanner(el) {
   const step = S.plannerStep;
+  const steps = ['Configure','Generate','Review','Shop'];
   el.innerHTML = `
-    <div class="steps">
-      <div class="step ${step > 0 ? 'done' : step === 0 ? 'active' : ''}"><div class="step-label">Configure</div></div>
-      <div class="step ${step > 1 ? 'done' : step === 1 ? 'active' : ''}"><div class="step-label">Generate</div></div>
-      <div class="step ${step > 2 ? 'done' : step === 2 ? 'active' : ''}"><div class="step-label">Review</div></div>
-      <div class="step ${step > 3 ? 'done' : step === 3 ? 'active' : ''}"><div class="step-label">Shop</div></div>
+    <div class="planner-bg">
+      <div class="planner-hero">
+        <div class="planner-hero-text">
+          <h2>🥗 Meal Planner</h2>
+          <p>AI-optimised meals matched to Mercadona's catalogue</p>
+          <div class="planner-hero-badges">
+            <span class="hero-badge">🧬 Macro-accurate</span>
+            <span class="hero-badge">💶 Budget-aware</span>
+            <span class="hero-badge">🛒 Mercadona-ready</span>
+            <span class="hero-badge">⚡ ILP optimised</span>
+          </div>
+        </div>
+        <div class="planner-hero-emoji">🌿</div>
+      </div>
+      <div class="steps-row">
+        ${steps.map((s,i)=>`
+          <div class="step-item ${i<step?'done':i===step?'active':''}">
+            <div class="step-num">${i<step?'<i class="fa-solid fa-check" style="font-size:.6rem"></i>':i+1}</div>
+            <div class="step-lbl">${s}</div>
+          </div>`).join('')}
+      </div>
+      <div id="planner-content"></div>
     </div>
-    <div id="planner-content"></div>
   `;
   const c = document.getElementById('planner-content');
   if (step === 0) renderPlannerConfig(c);
@@ -180,63 +387,142 @@ function renderPlanner(el) {
 }
 
 function renderPlannerConfig(el) {
-  const cuisines = S.config?.cuisine_map ? Object.keys(S.config.cuisine_map) : ['American','Italian','Mexican/Latin','Asian','Mediterranean','Healthy','Junk Food'];
+  const cuisineList = S.config?.cuisine_map ? Object.keys(S.config.cuisine_map) : ['American','Italian','Mexican/Latin','Asian','Mediterranean','Healthy','Junk Food'];
+  const cuisineFlags = {
+    'American':      '🍖',   // BBQ ribs — iconic American cookout food
+    'Italian':       '🍕',   // Pizza — universally recognisable
+    'Mexican/Latin': '🌮',   // Taco
+    'Asian':         '🥢',   // Chopsticks
+    'Mediterranean': '🌊',   // Ocean wave — Mediterranean Sea
+    'Healthy':       '🥑',   // Avocado
+    'Junk Food':     '🍔',   // Burger
+    'Spanish':       '🥘',   // Paella pan
+    'French':        '🥐',   // Croissant
+    'Indian':        '🍛',   // Curry bowl
+    'Lebanese':      '🫓',   // Flatbread / pita
+    'Chinese':       '🥟',   // Dim sum dumplings
+    'Thai':          '🌶️',  // Chilli
+    'African':       '🍲',   // Pot of food — tagines, stews
+    'Caribbean':     '🏝️',  // Tropical island
+    'European':      '🏰',   // Castle — classic European landmark
+    'Japanese':      '🍣',   // Sushi
+    'Greek':         '🫒',   // Olive
+    'Middle Eastern':'🌙',   // Crescent moon
+    'User Input':    '✏️',   // Pencil
+  };
+  const cuisineSubs = {
+    'American':      'BBQ, burgers',
+    'Italian':       'Pasta, risotto',
+    'Mexican/Latin': 'Tacos, burritos',
+    'Asian':         'Sushi, ramen, wok',
+    'Mediterranean': 'Gyros, mezze',
+    'Healthy':       'Clean, macro-fit',
+    'Junk Food':     'Burgers, pizza',
+    'Spanish':       'Paella, tapas',
+    'French':        'Crêpes, ratatouille',
+    'Indian':        'Curry, dal, naan',
+    'Lebanese':      'Hummus, shawarma',
+    'Chinese':       'Dim sum, stir-fry',
+    'Thai':          'Curries, pad thai',
+    'African':       'Stews, tagines',
+    'Caribbean':     'Rice & peas, jerk',
+    'European':      'Varied, seasonal',
+    'Japanese':      'Sushi, ramen',
+    'Greek':         'Mezze, souvlaki',
+    'Middle Eastern':'Falafel, kebabs',
+    'User Input':    'Your custom choice',
+  };
+  const slotDefs = [
+    {name:'Breakfast',emoji:'☀️',col:'#f59e0b',bg:'#fffbeb',on:true},
+    {name:'Lunch',emoji:'🌤️',col:'#00a651',bg:'#edfaf4',on:true},
+    {name:'Snack',emoji:'🍎',col:'#3d8bff',bg:'#eff6ff',on:true},
+    {name:'Dinner',emoji:'🌙',col:'#8b5cf6',bg:'#f5f3ff',on:true},
+    {name:'Dessert',emoji:'🍮',col:'#ec4899',bg:'#fdf2f8',on:false},
+    {name:'Beverage',emoji:'🥤',col:'#06b6d4',bg:'#ecfeff',on:false},
+  ];
+
   el.innerHTML = `
-    <div class="card">
-      <div class="card-header"><i class="fa-solid fa-sliders"></i><h3>Nutritional Targets & Preferences</h3></div>
-      <div class="form-row">
-        <div class="form-group"><label>Daily Calories</label><input type="number" id="p-cal" value="2000" min="800" max="5000"></div>
-        <div class="form-group"><label>Protein (g)</label><input type="number" id="p-prot" value="100" min="20" max="400"></div>
-        <div class="form-group"><label>Carbs (g)</label><input type="number" id="p-carb" value="250" min="20" max="600"></div>
-        <div class="form-group"><label>Fat (g)</label><input type="number" id="p-fat" value="65" min="10" max="200"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Budget (&euro;/day)</label><input type="number" id="p-budget" value="50" min="5" max="200" step="5"></div>
-        <div class="form-group"><label>Max Cook Time (min)</label><input type="number" id="p-time" value="60" min="10" max="180" step="5"></div>
-        <div class="form-group"><label>Number of Days</label><input type="number" id="p-days" value="7" min="1" max="14"></div>
-        <div class="form-group"><label>People</label><input type="number" id="p-people" value="1" min="1" max="10"></div>
-      </div>
-      <div class="form-group">
-        <label>Meal Variability</label>
-        <select id="p-var">
-          <option value="High">High (unique meals each day)</option>
-          <option value="Medium">Medium (repeat every 2 days)</option>
-          <option value="Low">Low (batch cooking)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Meal Slots</label>
-        <div class="chip-group" id="slot-chips">
-          ${['Breakfast','Lunch','Snack','Dinner','Dessert','Beverage'].map(s =>
-            `<div class="chip ${['Breakfast','Lunch','Snack','Dinner'].includes(s)?'selected':''}" data-slot="${s}">${s}</div>`
-          ).join('')}
+    <div class="config-grid">
+      <div>
+        <div class="config-card mb-2">
+          <h4><i class="fa-solid fa-fire"></i> Nutritional Targets</h4>
+          <div class="field-row">
+            <div class="field"><label>Calories/day</label><input type="number" id="p-cal" value="2000" min="800" max="5000"></div>
+            <div class="field"><label>Protein (g)</label><input type="number" id="p-prot" value="100" min="20" max="400"></div>
+            <div class="field"><label>Carbs (g)</label><input type="number" id="p-carb" value="250" min="20" max="600"></div>
+            <div class="field"><label>Fat (g)</label><input type="number" id="p-fat" value="65" min="10" max="200"></div>
+          </div>
+        </div>
+        <div class="config-card mb-2">
+          <h4><i class="fa-solid fa-sliders"></i> Plan Settings</h4>
+          <div class="field-row">
+            <div class="field"><label>Days</label><input type="number" id="p-days" value="7" min="1" max="14"></div>
+            <div class="field"><label>People</label><input type="number" id="p-people" value="1" min="1" max="10"></div>
+            <div class="field"><label>Budget €/day</label><input type="number" id="p-budget" value="50" min="5" max="200" step="5"></div>
+            <div class="field"><label>Max cook min</label><input type="number" id="p-time" value="60" min="10" max="180" step="5"></div>
+          </div>
+          <div class="field">
+            <label>Meal Variability</label>
+            <select id="p-var">
+              <option value="High">High (unique meals each day)</option>
+              <option value="Medium">Medium (repeat every 2 days)</option>
+              <option value="Low">Low (batch cooking)</option>
+            </select>
+          </div>
+        </div>
+        <div class="config-card">
+          <h4><i class="fa-solid fa-clock"></i> Meal Slots</h4>
+          <div class="slot-grid" id="slot-chips">
+            ${slotDefs.map(s=>`
+              <div class="slot-card ${s.on?'on':''}" style="color:${s.col};border-color:${s.on?s.col:'var(--border)'}" data-slot="${s.name}">
+                <div class="slot-dot" style="background:${s.bg}">${s.emoji}</div>
+                <div><div class="slot-card-name">${s.name}</div></div>
+              </div>`).join('')}
+          </div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Cuisine Preferences</label>
-        <div class="chip-group" id="cuisine-chips">
-          ${cuisines.map(c => `<div class="chip" data-cuisine="${c}">${c}</div>`).join('')}
+      <div>
+        <div class="config-card mb-2">
+          <h4><i class="fa-solid fa-earth-europe"></i> Cuisine Style</h4>
+          <div class="cuisine-grid" id="cuisine-chips">
+            ${cuisineList.map(c=>`
+              <div class="cuisine-card ${['Italian','Mediterranean','Healthy'].includes(c)?'on':''}" data-cuisine="${c}">
+                <div class="cuisine-flag">${cuisineFlags[c]||'🍽️'}</div>
+                <div class="cuisine-name">${c}</div>
+                ${cuisineSubs[c] ? `<div class="cuisine-sub">${cuisineSubs[c]}</div>` : ''}
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="config-card">
+          <h4><i class="fa-solid fa-ban"></i> Exclude Ingredients</h4>
+          <div class="field"><input type="text" id="p-dislikes" placeholder="e.g. mushrooms, shellfish, tofu…"></div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Dislikes <span class="hint">(comma-separated ingredients to exclude)</span></label>
-        <input type="text" id="p-dislikes" placeholder="e.g. mushrooms, shrimp, tofu">
-      </div>
-      <div class="mt-2">
-        <button class="btn-primary" onclick="startGeneration()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Meal Plan</button>
-      </div>
+    </div>
+    <div class="mt-2">
+      <button class="btn btn-green" onclick="startGeneration()">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Meal Plan
+      </button>
     </div>
   `;
 
-  // Chip toggle logic
-  el.querySelectorAll('.chip').forEach(chip => {
-    chip.addEventListener('click', () => chip.classList.toggle('selected'));
+  // Toggle cuisine cards
+  el.querySelectorAll('.cuisine-card').forEach(c => {
+    c.addEventListener('click', () => c.classList.toggle('on'));
+  });
+  // Toggle slot cards
+  el.querySelectorAll('.slot-card').forEach(c => {
+    c.addEventListener('click', () => {
+      const col = c.style.color;
+      c.classList.toggle('on');
+      c.style.borderColor = c.classList.contains('on') ? col : 'var(--border)';
+    });
   });
 }
 
 async function startGeneration() {
-  const slots = [...document.querySelectorAll('#slot-chips .chip.selected')].map(c => c.dataset.slot);
-  const cuisines = [...document.querySelectorAll('#cuisine-chips .chip.selected')].map(c => c.dataset.cuisine);
+  const slots = [...document.querySelectorAll('#slot-chips .slot-card.on, #slot-chips .chip.selected')].map(c => c.dataset.slot).filter(Boolean);
+  const cuisines = [...document.querySelectorAll('#cuisine-chips .cuisine-card.on, #cuisine-chips .chip.selected')].map(c => c.dataset.cuisine).filter(Boolean);
   if (!slots.length) { toast('Select at least one meal slot', 'error'); return; }
 
   // ⚠️ Read ALL form values BEFORE re-rendering (renderPlanner resets the DOM)
@@ -318,11 +604,14 @@ function renderPlannerGenerating(el) {
   const daysCount = S._planParams?.days || 7;
   el.innerHTML = `<div class="loader-overlay">
   <div id="grocery-loader-mount"></div>
-  <p>Optimising your meal plan…</p>
-  <small>Matching ingredients to Mercadona's catalogue via AI</small>
-  <div style="display:flex;gap:20px;margin-top:-8px">
-    <div style="text-align:center"><div style="font-size:1.4rem;font-weight:700;color:var(--g600);font-family:var(--font-d)" id="gl-count-up">0</div><div style="font-size:.72rem;color:var(--text3)">Recipes scored</div></div>
-    <div style="text-align:center"><div style="font-size:1.4rem;font-weight:700;color:var(--amber);font-family:var(--font-d)" id="gl-days-count">${daysCount}</div><div style="font-size:.72rem;color:var(--text3)">Days planned</div></div>
+  <div style="text-align:center">
+    <h3>Optimising your meal plan…</h3>
+    <p>Scoring recipes · Matching to Mercadona · Balancing macros</p>
+  </div>
+  <div class="counter-row">
+    <div class="counter-item"><div class="counter-val green" id="gl-count-up">0</div><div class="counter-lbl">Recipes scored</div></div>
+    <div class="counter-item"><div class="counter-val" style="color:var(--amber-d)">${daysCount}</div><div class="counter-lbl">Days planned</div></div>
+    <div class="counter-item"><div class="counter-val" style="color:var(--blue)">${(S._planParams?.slots||['Breakfast','Lunch','Snack','Dinner']).length}</div><div class="counter-lbl">Meal slots</div></div>
   </div>
 </div>`;
   mountGroceryLoader(document.getElementById('grocery-loader-mount'));
@@ -1309,10 +1598,10 @@ function _initBasketDragDrop() {
   const list = document.getElementById('basket-list');
   if (!list) return;
   let dragged = null;
-  list.querySelectorAll('.basket-item').forEach(item => {
+  list.querySelectorAll('.bitem').forEach(item => {
     item.addEventListener('dragstart', () => { dragged = item; setTimeout(() => item.classList.add('dragging'), 0); });
-    item.addEventListener('dragend', () => { item.classList.remove('dragging'); list.querySelectorAll('.basket-item').forEach(i => i.classList.remove('drag-over')); });
-    item.addEventListener('dragover', e => { e.preventDefault(); if (item !== dragged) { list.querySelectorAll('.basket-item').forEach(i => i.classList.remove('drag-over')); item.classList.add('drag-over'); } });
+    item.addEventListener('dragend', () => { item.classList.remove('dragging'); list.querySelectorAll('.bitem').forEach(i => i.classList.remove('drag-over')); });
+    item.addEventListener('dragover', e => { e.preventDefault(); if (item !== dragged) { list.querySelectorAll('.bitem').forEach(i => i.classList.remove('drag-over')); item.classList.add('drag-over'); } });
     item.addEventListener('drop', e => {
       e.preventDefault(); item.classList.remove('drag-over');
       if (dragged && dragged !== item) {
@@ -1331,47 +1620,61 @@ function renderBasket(el) {
   el.innerHTML = `
     <div class="search-bar" id="merc-search-wrap">
       <i class="fa-solid fa-magnifying-glass"></i>
-      <input type="search" id="merc-search" placeholder="Search Mercadona products..." autocomplete="off">
+      <input type="search" id="merc-search" placeholder="Search Mercadona products…" autocomplete="off">
       <div class="search-results" id="merc-results"></div>
     </div>
 
     ${S.basket.length ? `
-    <div class="basket-grid">
-      <div class="basket-items">
-        <div id="basket-list">
-          ${S.basket.map((item, i) => `
-          <div class="basket-item" draggable="true" data-idx="${i}">
-            <span class="drag-handle"><i class="fa-solid fa-grip-vertical"></i></span>
-            <div class="item-dot">${item.name ? item.name[0].toUpperCase() : '?'}</div>
-            <div class="item-info">
-              <div class="item-name">${item.url ? `<a href="${item.url}" target="_blank" style="color:inherit">${item.name}</a>` : item.name}</div>
-              <div class="item-sub">${item.qty || ''}</div>
+    <div class="basket-layout">
+      <div>
+        <div class="basket-list">
+          <div class="basket-list-hd">
+            <h3>Your Items <span class="text-muted text-sm fw-6">(drag to reorder)</span></h3>
+            <span class="badge badge-grey">${S.basket.length} item${S.basket.length!==1?'s':''}</span>
+          </div>
+          <div id="basket-list">
+            ${S.basket.map((item, i) => `
+            <div class="bitem" draggable="true" data-idx="${i}">
+              <span class="drag-h"><i class="fa-solid fa-grip-vertical"></i></span>
+              <div class="bitem-img">${item.name ? item.name[0].toUpperCase() : '?'}</div>
+              <div class="bitem-info">
+                <div class="bitem-name">${item.url ? `<a href="${item.url}" target="_blank" style="color:inherit;text-decoration:none">${item.name}</a>` : item.name}</div>
+                <div class="bitem-sub">${item.qty || ''}</div>
+              </div>
+              <div class="qty-ctrl">
+                <button class="qty-btn" onclick="changeBasketCount(${i},-1)"><i class="fa-solid fa-minus"></i></button>
+                <span class="qty-n">${item.count || 1}</span>
+                <button class="qty-btn" onclick="changeBasketCount(${i},1)"><i class="fa-solid fa-plus"></i></button>
+              </div>
+              <div class="bitem-price">&euro;${((item.price||0)*(item.count||1)).toFixed(2)}</div>
+              <span class="bitem-del" onclick="removeBasketItem(${i})"><i class="fa-solid fa-xmark"></i></span>
+            </div>`).join('')}
+          </div>
+          <div style="padding:12px 16px">
+            <div class="search-pill" style="cursor:pointer" onclick="document.getElementById('merc-search')?.focus()">
+              <i class="fa-solid fa-plus" style="color:var(--g600)"></i>
+              <span style="color:var(--g600);font-weight:700">Add Mercadona product…</span>
             </div>
-            <div class="item-qty">
-              <button class="qty-btn" onclick="changeBasketCount(${i}, -1)"><i class="fa-solid fa-minus"></i></button>
-              <span class="qty-num">${item.count || 1}</span>
-              <button class="qty-btn" onclick="changeBasketCount(${i}, 1)"><i class="fa-solid fa-plus"></i></button>
-            </div>
-            <span class="item-price">&euro;${((item.price || 0) * (item.count || 1)).toFixed(2)}</span>
-            <button class="item-remove" title="Remove" onclick="removeBasketItem(${i})"><i class="fa-solid fa-trash"></i></button>
-          </div>`).join('')}
+          </div>
         </div>
       </div>
-      <div class="basket-summary-card">
-        <h3>Order Summary</h3>
-        <div class="summary-row"><span class="text-muted">${S.basket.length} item(s)</span><span>&euro;${total.toFixed(2)}</span></div>
-        <div class="summary-total"><span>Total</span><span>&euro;${total.toFixed(2)}</span></div>
-        <div class="btn-group mt-2" style="flex-direction:column">
-          <button class="btn-primary" style="width:100%;justify-content:center" onclick="confirmPurchase()"><i class="fa-solid fa-check"></i> Confirm Purchase</button>
-          <button class="btn-ghost" style="width:100%;justify-content:center" onclick="clearBasket()"><i class="fa-solid fa-trash"></i> Clear Basket</button>
+      <div class="order-card">
+        <div class="order-card-hd"><h3>Order Summary</h3></div>
+        <div class="order-card-body">
+          <div class="order-row"><span class="lbl">Subtotal (${S.basket.length} item${S.basket.length!==1?'s':''})</span><span class="val">&euro;${total.toFixed(2)}</span></div>
+          <div class="order-row"><span class="lbl">Delivery</span><span class="val green">Free</span></div>
+          <div class="order-total"><span class="lbl">Total</span><span class="val">&euro;${total.toFixed(2)}</span></div>
+          <button class="btn btn-black mt-2" style="width:100%;justify-content:center" onclick="confirmPurchase()"><i class="fa-solid fa-check"></i> Confirm Purchase</button>
+          <button class="btn btn-outline btn-sm mt-1" style="width:100%;justify-content:center" onclick="clearBasket()"><i class="fa-solid fa-trash"></i> Clear Basket</button>
         </div>
       </div>
     </div>
     ` : `
-    <div class="basket-empty">
-      <i class="fa-solid fa-basket-shopping"></i>
-      <p>Your basket is empty</p>
-      <p class="text-sm text-muted mt-1">Search for products above or generate a shopping list from the Meal Planner</p>
+    <div class="ph-wrap">
+      <div class="ph-icon">🛒</div>
+      <div class="ph-title">Your basket is empty</div>
+      <p class="ph-desc">Search Mercadona products above or generate a shopping list from the Meal Planner.</p>
+      <button class="btn btn-green" onclick="location.hash='#/planner'"><i class="fa-solid fa-utensils"></i> Go to Planner</button>
     </div>`}
   `;
 
@@ -1688,50 +1991,42 @@ async function renderRecipeBrowse() {
       c.innerHTML = `<div class="empty-state"><i class="fa-solid fa-book-open"></i><p>No user recipes yet. Submit one!</p></div>`;
       return;
     }
-    c.innerHTML = `<div class="card-grid">${recipes.map((r, idx) => {
+    c.innerHTML = `<div class="recipe-card-grid">${recipes.map((r, idx) => {
       const ratingVal = r.rating != null && r.rating > 0 ? r.rating : null;
-      const stars = ratingVal ? ('★'.repeat(Math.round(ratingVal)).padEnd(5,'☆').slice(0,5) + ` ${ratingVal.toFixed(1)}`) : '—';
+      const starsHtml = ratingVal
+        ? Array.from({length:5},(_,i)=>`<i class="fa-solid fa-star" style="color:${i<Math.round(ratingVal)?'#f59e0b':'#d1d5db'};font-size:.6rem"></i>`).join('')
+        : '<span style="color:var(--text3);font-size:.7rem">No rating</span>';
       const hasLink = r.source_url && r.source_url.trim();
       const isYT = hasLink && r.source_url.includes('youtu');
+      const kcal = Math.round(r.calories || 0);
+      const prot = Math.round(r.protein || 0);
+      const carb = Math.round(r.carbs || 0);
+      const fat  = Math.round(r.fat || 0);
       return `
-      <div class="recipe-card" style="position:relative">
-        <!-- Custom badge -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:9999px;background:var(--primary-light);color:var(--primary)">
-            <i class="fa-solid fa-user" style="margin-right:4px"></i>Custom
-          </span>
-          <div style="display:flex;gap:4px">
-            <button onclick="editRecipe(${idx})" title="Edit recipe"
-              style="border:none;background:none;cursor:pointer;color:var(--text-light);font-size:.8rem;padding:2px 6px;border-radius:6px;transition:background .15s"
-              onmouseover="this.style.background='var(--surface-alt)'" onmouseout="this.style.background='none'">
-              <i class="fa-solid fa-pen"></i>
-            </button>
-            <button onclick="deleteRecipe(${idx})" title="Delete recipe"
-              style="border:none;background:none;cursor:pointer;color:#ef4444;font-size:.8rem;padding:2px 6px;border-radius:6px;transition:background .15s"
-              onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+      <div class="rc">
+        <div class="rc-top">
+          <span class="rc-badge"><i class="fa-solid fa-user"></i> Custom</span>
+          <div class="rc-actions">
+            <button class="rc-btn-edit" onclick="editRecipe(${idx})" title="Edit"><i class="fa-solid fa-pen"></i></button>
+            <button class="rc-btn-del"  onclick="deleteRecipe(${idx})" title="Delete"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
-        <h4 style="margin:0 0 6px;font-size:.95rem;font-weight:600">${r.name || 'Untitled'}</h4>
-        <div class="recipe-meta">
-          <span><i class="fa-solid fa-tag"></i> ${r.category || 'Main'}</span>
-          <span><i class="fa-solid fa-clock"></i> ${r.prep_time || 30} min</span>
-          <span><i class="fa-solid fa-star" style="color:#f59e0b"></i> ${stars}</span>
+        <h4 class="rc-name">${r.name || 'Untitled'}</h4>
+        <div class="rc-pills">
+          <span class="rc-pill grey"><i class="fa-solid fa-tag"></i> ${r.category || 'Main'}</span>
+          <span class="rc-pill grey"><i class="fa-solid fa-clock"></i> ${r.prep_time || 30} min</span>
+          <span class="rc-pill grey">${starsHtml}</span>
         </div>
-        <div class="recipe-meta" style="margin-top:4px">
-          <span><i class="fa-solid fa-fire"></i> ${Math.round(r.calories || 0)} kcal</span>
-          <span>${Math.round(r.protein || 0)}g P</span>
-          <span>${Math.round(r.carbs || 0)}g C</span>
-          <span>${Math.round(r.fat || 0)}g F</span>
+        <div class="rc-macros">
+          <div class="rc-macro"><div class="rc-macro-val">${kcal}</div><div class="rc-macro-lbl">kcal</div></div>
+          <div class="rc-macro"><div class="rc-macro-val" style="color:#3d8bff">${prot}g</div><div class="rc-macro-lbl">Protein</div></div>
+          <div class="rc-macro"><div class="rc-macro-val" style="color:#f59e0b">${carb}g</div><div class="rc-macro-lbl">Carbs</div></div>
+          <div class="rc-macro"><div class="rc-macro-val" style="color:#00a651">${fat}g</div><div class="rc-macro-lbl">Fat</div></div>
         </div>
-        ${r.ingredients ? `<p class="text-sm text-muted mt-1" style="line-height:1.4">${r.ingredients.substring(0, 120)}${r.ingredients.length > 120 ? '…' : ''}</p>` : ''}
+        ${r.ingredients ? `<p class="rc-ingredients">${r.ingredients.substring(0,110)}${r.ingredients.length>110?'…':''}</p>` : ''}
         ${hasLink ? `
-        <a href="${r.source_url}" target="_blank" rel="noopener"
-           style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:.75rem;font-weight:600;
-                  color:${isYT ? '#ef4444' : 'var(--primary)'};text-decoration:none;border:1px solid ${isYT ? '#fecaca' : 'var(--primary-light)'};
-                  border-radius:9999px;padding:2px 10px;background:${isYT ? '#fee2e220' : 'var(--primary-light)'}">
-          <i class="fa-${isYT ? 'brands fa-youtube' : 'solid fa-arrow-up-right-from-square'}"></i>
+        <a href="${r.source_url}" target="_blank" rel="noopener" class="rc-link ${isYT?'yt':'web'}">
+          <i class="fa-${isYT?'brands fa-youtube':'solid fa-arrow-up-right-from-square'}"></i>
           ${isYT ? 'Watch on YouTube' : 'View source'}
         </a>` : ''}
       </div>`;
@@ -2031,8 +2326,9 @@ function renderNutritionMessages() {
   }
   c.innerHTML = _nutritionChat.map(m => {
     const isUser = m.role === 'user';
+    const bubbleClass = isUser ? 'user-bubble' : (_isActionMsg(m.content) ? 'action-bubble' : 'ai-bubble');
     return `<div class="chat-msg ${isUser ? 'user' : 'assistant'}">
-      <div class="chat-bubble">${m.content.replace(/\n/g, '<br>')}</div>
+      <div class="bubble ${bubbleClass}">${m.content.replace(/\n/g, '<br>')}</div>
     </div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
@@ -2052,7 +2348,7 @@ async function sendNutritionMessage() {
   const c = document.getElementById('nutrition-messages');
   const thinking = document.createElement('div');
   thinking.className = 'chat-msg assistant';
-  thinking.innerHTML = '<div class="chat-bubble"><span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></span> Thinking…</div>';
+  thinking.innerHTML = '<div class="bubble ai-bubble"><span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></span> Thinking…</div>';
   c?.appendChild(thinking);
   c.scrollTop = c.scrollHeight;
 
@@ -2661,18 +2957,18 @@ function _renderCoachMessages() {
   // Render history bubbles
   el.innerHTML = '';
   history.forEach(m => {
-    const bubble = document.createElement('div');
     const isUser = m.role === 'user';
-    bubble.style.cssText = [
-      'max-width:85%', 'padding:10px 14px', 'border-radius:12px',
-      'font-size:.82rem', 'line-height:1.5', 'white-space:pre-wrap',
-      isUser ? 'align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:3px'
-             : 'align-self:flex-start;background:var(--surface-alt,#f1f5f9);color:var(--text);border-bottom-left-radius:3px',
-    ].join(';');
+    const wrap = document.createElement('div');
+    wrap.className = `chat-msg ${isUser ? 'user' : 'assistant'}`;
+    const bubble = document.createElement('div');
+    const bubbleClass = isUser ? 'user-bubble' : (_isActionMsg(m.content) ? 'action-bubble' : 'ai-bubble');
+    bubble.className = `bubble ${bubbleClass}`;
+    bubble.style.whiteSpace = 'pre-wrap';
     const html = (m.content || '').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>');
     bubble.innerHTML = html;
-    el.appendChild(bubble);
+    wrap.appendChild(bubble);
+    el.appendChild(wrap);
   });
   el.scrollTop = el.scrollHeight;
 }
@@ -2693,19 +2989,19 @@ function _appendCoachBubble(role, text, actions) {
   const placeholder = el.querySelector('.text-muted');
   if (placeholder && !_bodyCoachHistory.length) placeholder.remove();
 
-  const bubble = document.createElement('div');
   const isUser = role === 'user';
-  bubble.style.cssText = [
-    'max-width:85%', 'padding:10px 14px', 'border-radius:12px',
-    'font-size:.82rem', 'line-height:1.5', 'white-space:pre-wrap',
-    isUser ? 'align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:3px'
-           : 'align-self:flex-start;background:var(--surface-alt,#f1f5f9);color:var(--text);border-bottom-left-radius:3px',
-  ].join(';');
+  const wrap = document.createElement('div');
+  wrap.className = `chat-msg ${isUser ? 'user' : 'assistant'}`;
+  const bubble = document.createElement('div');
+  const bubbleClass = isUser ? 'user-bubble' : (_isActionMsg(text) ? 'action-bubble' : 'ai-bubble');
+  bubble.className = `bubble ${bubbleClass}`;
+  bubble.style.whiteSpace = 'pre-wrap';
 
   // Render markdown-like links: [text](url)
   const html = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>');
   bubble.innerHTML = html;
+  wrap.appendChild(bubble);
 
   // Render action buttons for assistant messages
   if (!isUser && actions && actions.length) {
@@ -2731,7 +3027,7 @@ function _appendCoachBubble(role, text, actions) {
     bubble.appendChild(wrap);
   }
 
-  el.appendChild(bubble);
+  el.appendChild(wrap);
   el.scrollTop = el.scrollHeight;
 }
 
@@ -2759,8 +3055,8 @@ async function sendBodyCoachMessage() {
   // Thinking bubble
   const msgEl = document.getElementById('body-coach-messages');
   const thinking = document.createElement('div');
-  thinking.style.cssText = 'align-self:flex-start;font-size:.78rem;color:var(--text-light);padding:6px 12px;font-style:italic';
-  thinking.textContent = 'Thinking…';
+  thinking.className = 'chat-msg assistant';
+  thinking.innerHTML = '<div class="bubble ai-bubble" style="font-style:italic;opacity:.7"><span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>Thinking…</div>';
   if (msgEl) { msgEl.appendChild(thinking); msgEl.scrollTop = msgEl.scrollHeight; }
 
   try {
@@ -2798,13 +3094,13 @@ async function sendBodyCoachMessage() {
 
     const rawReply = res.reply || '';
     if (isBodyTab) {
-      // Body Coach can emit ---ACTIONS--- blocks
+      // Body Coach can emit ---ACTIONS--- blocks — strip before storing/rendering
       const { displayText, actions } = _parseDebateActions(rawReply);
-      history.push({ role: 'assistant', content: rawReply });
+      history.push({ role: 'assistant', content: displayText });
       _renderCoachMessages();
-      // Append action buttons to the last assistant bubble
+      // Append action buttons to the last assistant bubble (CSS class, not inline style)
       if (actions.length) {
-        const bubbles = msgEl?.querySelectorAll('div[style*="align-self:flex-start"]');
+        const bubbles = msgEl?.querySelectorAll('.bubble.ai-bubble, .bubble.action-bubble');
         if (bubbles?.length) _renderDebateActions(actions, bubbles[bubbles.length - 1]);
       }
     } else {
@@ -3122,6 +3418,13 @@ function toggleChat() {
   }
 }
 
+/** Returns true if an AI message text is primarily an action suggestion */
+function _isActionMsg(text) {
+  if (!text) return false;
+  const t = text.toLowerCase().trim();
+  return /\b(i recommend|i suggest|you should|try adding|consider (buying|adding|trying)|add to (your )?basket|buy (this|these)|grab|pick up|here'?s? what i'?d? (recommend|suggest)|here are (some|my) (recommendations|suggestions))\b/.test(t);
+}
+
 function renderChatMessages() {
   const c = document.getElementById('chat-messages');
   if (!c) return;
@@ -3132,14 +3435,18 @@ function renderChatMessages() {
     return;
   }
   c.innerHTML = S.chat.map(m => {
+    const isUser = m.role === 'user';
     let content = m.content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     let extra = '';
     if (m.basket_items?.length) {
-      extra = `<div class="basket-offer"><strong>${m.basket_items.length} item(s) to add:</strong><br>` +
+      extra = `<div class="basket-offer" style="margin-top:8px"><strong>${m.basket_items.length} item(s) to add:</strong><br>` +
         m.basket_items.map(b => `${b.name} — &euro;${(b.price||0).toFixed(2)}`).join('<br>') +
         `<br><button class="btn-primary btn-sm mt-1" onclick='chatAddToBasket(${JSON.stringify(m.basket_items).replace(/'/g,"&#39;")})'>Add to Basket</button></div>`;
     }
-    return `<div class="chat-msg ${m.role}">${content}${extra}</div>`;
+    const bubbleClass = isUser ? 'user-bubble' : (_isActionMsg(m.content) ? 'action-bubble' : 'ai-bubble');
+    return `<div class="chat-msg ${m.role}">
+      <div class="bubble ${bubbleClass}">${content}${extra}</div>
+    </div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
 }

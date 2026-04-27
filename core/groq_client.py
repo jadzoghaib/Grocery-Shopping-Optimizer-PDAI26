@@ -8,10 +8,11 @@ auth errors.  Keys are read from environment variables at startup:
 
 Usage
 ─────
-# Simple: get the best available client right now
-client = make_groq_client(preferred_key="")
+# Drop-in replacement for groq.Groq — rotates automatically on 429/401:
+client = make_groq_client(preferred_key="gsk_...")
+resp   = client.chat.completions.create(model=..., messages=...)
 
-# Robust: run any callable(groq.Groq) with retry across all pool keys
+# Low-level: run any callable(groq.Groq) with retry across all pool keys:
 result = groq_with_rotation(lambda c: c.chat.completions.create(...))
 
 If the caller supplies a preferred_key (e.g. from the browser Settings),
@@ -67,21 +68,7 @@ def _cool_down(key: str, seconds: int) -> None:
           f"({sum(1 for k in _SERVER_KEYS if _cooldowns.get(k,0) > time.time())}/{n} keys on cooldown)")
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
-def make_groq_client(preferred_key: str = "") -> Groq:
-    """
-    Return a Groq client.  If preferred_key is non-empty, use it;
-    otherwise pick the next available server key.
-    """
-    key = preferred_key.strip() or _available_key()
-    if not key:
-        raise ValueError(
-            "No Groq API key available. "
-            "Add one in the app Settings or set GROQ_API_KEY on the server."
-        )
-    return Groq(api_key=key)
-
-
+# ── Core rotation logic ───────────────────────────────────────────────────────
 def groq_with_rotation(call_fn, preferred_key: str = ""):
     """
     Execute call_fn(groq.Groq) with automatic key rotation on 429 / auth errors.
@@ -123,6 +110,56 @@ def groq_with_rotation(call_fn, preferred_key: str = ""):
             raise   # non-rate-limit errors bubble up immediately
 
     raise last_err or RuntimeError("All Groq keys exhausted.")
+
+
+# ── RotatingGroqClient — drop-in replacement for groq.Groq ───────────────────
+class _RotatingCompletions:
+    """Mimics groq.resources.chat.Completions — rotates keys on every .create()."""
+    def __init__(self, preferred_key: str):
+        self._preferred = preferred_key
+
+    def create(self, **kwargs):
+        return groq_with_rotation(
+            lambda c: c.chat.completions.create(**kwargs),
+            preferred_key=self._preferred,
+        )
+
+
+class _RotatingChat:
+    """Mimics groq.resources.Chat."""
+    def __init__(self, preferred_key: str):
+        self.completions = _RotatingCompletions(preferred_key)
+
+
+class RotatingGroqClient:
+    """
+    Drop-in replacement for groq.Groq that auto-rotates through all pool keys
+    on 429 / auth errors.  Use exactly like groq.Groq:
+
+        client = make_groq_client("gsk_...")
+        resp   = client.chat.completions.create(model=..., messages=...)
+    """
+    def __init__(self, preferred_key: str = ""):
+        self._preferred = preferred_key.strip()
+        self.chat       = _RotatingChat(self._preferred)
+        # Expose api_key for any compatibility checks (e.g. news_rag.py)
+        self.api_key    = self._preferred
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+def make_groq_client(preferred_key: str = "") -> RotatingGroqClient:
+    """
+    Return a RotatingGroqClient.  If preferred_key is non-empty, it is tried
+    first; on 429/401 the client transparently falls back through the server
+    pool (GROQ_API_KEY_2 / _3 / _4).
+    """
+    key = preferred_key.strip() or _available_key()
+    if not key:
+        raise ValueError(
+            "No Groq API key available. "
+            "Add one in the app Settings or set GROQ_API_KEY on the server."
+        )
+    return RotatingGroqClient(key)
 
 
 def resolve_key(user_key: str = "") -> str:

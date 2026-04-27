@@ -690,10 +690,10 @@ def _groq_fallback(unmatched_foods: list[str], api_key: str) -> dict[str, float]
         return {}
     ing_text = ", ".join(unmatched_foods[:20])
     try:
-        from groq import Groq
-        client = Groq(api_key=api_key.strip())
+        from core.groq_client import make_groq_client
+        client = make_groq_client(api_key)
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[{
                 "role": "user",
                 "content": _GROQ_FALLBACK_PROMPT.format(ingredients=ing_text),
@@ -987,10 +987,10 @@ def body_coach_chat(
     messages.append({"role": "user", "content": message})
 
     try:
-        from groq import Groq
-        client = Groq(api_key=api_key.strip())
+        from core.groq_client import make_groq_client
+        client = make_groq_client(api_key)
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages,
             temperature=0.4,
             max_tokens=600,
